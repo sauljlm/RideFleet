@@ -16,6 +16,7 @@ import { getTodayUTC, getWeekRange } from './week-range.util';
 export interface DriverPaymentStatus {
   driverId: string;
   fullName: string;
+  photo: string | null;
   weeklyAmount: number;
   lastPayment: {
     weekStart: Date;
@@ -25,6 +26,7 @@ export interface DriverPaymentStatus {
   currentAmountDue: number;
   pendingBalance: number;
   hasPaidCurrentWeek: boolean;
+  inGracePeriod: boolean;
 }
 
 @Injectable()
@@ -178,20 +180,41 @@ export class PaymentsService {
         .exec();
 
       const pendingBalance = lastPayment?.remainingBalance ?? 0;
-      const currentAmountDue = driver.weeklyAmount + pendingBalance;
 
       const { weekStart: todayWeekStart } = getWeekRange(
         getTodayUTC(),
         driver.weekStartDay,
       );
-      const hasPaidCurrentWeek = await this.paymentModel.exists({
-        driverId: driver._id,
-        weekStart: todayWeekStart,
-      });
+
+      // Si el depósito cubre la primera semana de contrato, esa semana (la
+      // que contiene contractStartDate) no cuenta como atrasada ni se
+      // espera pago: es la única semana en la que puede activarse.
+      let inGracePeriod = false;
+      if (driver.depositCoversFirstWeek) {
+        const { weekStart: firstWeekStart } = getWeekRange(
+          driver.contractStartDate,
+          driver.weekStartDay,
+        );
+        inGracePeriod = firstWeekStart.getTime() === todayWeekStart.getTime();
+      }
+
+      const hasPaidCurrentWeek = inGracePeriod
+        ? true
+        : Boolean(
+            await this.paymentModel.exists({
+              driverId: driver._id,
+              weekStart: todayWeekStart,
+            }),
+          );
+
+      const currentAmountDue = inGracePeriod
+        ? 0
+        : driver.weeklyAmount + pendingBalance;
 
       results.push({
         driverId: driver._id.toString(),
         fullName: driver.fullName,
+        photo: driver.photo,
         weeklyAmount: driver.weeklyAmount,
         lastPayment: lastPayment
           ? {
@@ -202,7 +225,8 @@ export class PaymentsService {
           : null,
         currentAmountDue,
         pendingBalance,
-        hasPaidCurrentWeek: Boolean(hasPaidCurrentWeek),
+        hasPaidCurrentWeek,
+        inGracePeriod,
       });
     }
 

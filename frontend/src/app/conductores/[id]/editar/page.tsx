@@ -153,7 +153,7 @@ function EditDriverContent() {
               accept="image/*"
               onChange={handlePhotoChange}
               disabled={photoUploading}
-              className="text-sm"
+              className="file-input"
             />
             {photoUploading && (
               <p className="mt-1 text-sm text-gray-500">Subiendo…</p>
@@ -193,7 +193,7 @@ function EditDriverContent() {
               multiple
               onChange={handleContractChange}
               disabled={contractUploading}
-              className="text-sm"
+              className="file-input"
             />
             {contractUploading && (
               <p className="mt-1 text-sm text-gray-500">Subiendo…</p>

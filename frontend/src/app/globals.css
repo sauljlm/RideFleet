@@ -12,13 +12,12 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/*
+ * Tema claro fijo, sin importar el modo oscuro del sistema operativo:
+ * esta app no tiene una versión oscura diseñada, y dejar que el modo
+ * oscuro del SO cambiara los colores producía fondos negros y texto
+ * con muy poco contraste sobre los inputs blancos.
+ */
 body {
   background: var(--background);
   color: var(--foreground);
@@ -28,5 +27,9 @@ body {
 @layer components {
   .input {
     @apply w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none;
+  }
+
+  .file-input {
+    @apply block w-full cursor-pointer rounded-md border border-gray-300 text-sm text-gray-900 file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-gray-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-gray-800 focus:outline-none;
   }
 }

@@ -12,6 +12,7 @@ export interface MaintenanceAlert {
   brand: string;
   model: string;
   plate: string;
+  photo: string | null;
   currentMileage: number;
   lastPreventiveMileage: number;
   lastPreventiveDate: string;
@@ -24,6 +25,7 @@ export interface VehicleProfitability {
   brand: string;
   model: string;
   plate: string;
+  photo: string | null;
   totalRevenue: number;
   totalMaintenanceCost: number;
   profit: number;

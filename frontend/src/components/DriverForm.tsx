@@ -49,6 +49,9 @@ export function DriverForm({
   const [deposit, setDeposit] = useState(
     initialValues?.deposit?.toString() ?? '',
   );
+  const [depositCoversFirstWeek, setDepositCoversFirstWeek] = useState(
+    initialValues?.depositCoversFirstWeek ?? false,
+  );
   const [status, setStatus] = useState<DriverStatus>(
     initialValues?.status ?? 'activo',
   );
@@ -70,6 +73,7 @@ export function DriverForm({
         weeklyAmount: Number(weeklyAmount),
         weekStartDay: Number(weekStartDay),
         deposit: deposit ? Number(deposit) : undefined,
+        depositCoversFirstWeek,
         status,
       })) as { _id: string };
       router.push(onSuccessRedirect(result._id));
@@ -167,6 +171,15 @@ export function DriverForm({
             className="input"
           />
         </Field>
+        <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            checked={depositCoversFirstWeek}
+            onChange={(e) => setDepositCoversFirstWeek(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          El depósito cubre la primera semana (no se espera pago esa semana)
+        </label>
         <Field label="Estado">
           <select
             value={status}

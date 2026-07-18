@@ -32,6 +32,7 @@ export interface UpdatePaymentInput {
 export interface DriverPaymentStatus {
   driverId: string;
   fullName: string;
+  photo: string | null;
   weeklyAmount: number;
   lastPayment: {
     weekStart: string;
@@ -41,6 +42,7 @@ export interface DriverPaymentStatus {
   currentAmountDue: number;
   pendingBalance: number;
   hasPaidCurrentWeek: boolean;
+  inGracePeriod: boolean;
 }
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {

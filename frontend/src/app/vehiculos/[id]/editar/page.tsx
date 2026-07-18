@@ -150,7 +150,7 @@ function EditVehicleContent() {
               multiple
               onChange={handlePhotosChange}
               disabled={photoUploading}
-              className="text-sm"
+              className="file-input"
             />
             {photoUploading && (
               <p className="mt-1 text-sm text-gray-500">Subiendo…</p>

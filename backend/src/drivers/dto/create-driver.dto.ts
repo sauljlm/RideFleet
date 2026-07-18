@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsDateString,
   IsEmail,
   IsEnum,
@@ -53,4 +54,8 @@ export class CreateDriverDto {
   @IsOptional()
   @IsEnum(DriverStatus, { message: 'Estado de conductor inválido' })
   status?: DriverStatus;
+
+  @IsOptional()
+  @IsBoolean({ message: 'depositCoversFirstWeek debe ser verdadero o falso' })
+  depositCoversFirstWeek?: boolean;
 }

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
+import { PhotoThumbnail } from '@/components/PhotoThumbnail';
 import { ApiError } from '@/lib/api';
 import { clearToken } from '@/lib/auth';
 import { deleteVehicle, getVehicles } from '@/lib/vehicles';
@@ -103,6 +104,7 @@ function VehiclesPageContent() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <Th>Foto</Th>
                 <Th>Marca / Modelo</Th>
                 <Th>Placa</Th>
                 <Th>Año</Th>
@@ -114,6 +116,12 @@ function VehiclesPageContent() {
             <tbody className="divide-y divide-gray-200 bg-white">
               {vehicles.map((vehicle) => (
                 <tr key={vehicle._id}>
+                  <Td>
+                    <PhotoThumbnail
+                      src={vehicle.photos[0] ?? null}
+                      alt={`${vehicle.brand} ${vehicle.model}`}
+                    />
+                  </Td>
                   <Td>
                     {vehicle.brand} {vehicle.model}
                   </Td>

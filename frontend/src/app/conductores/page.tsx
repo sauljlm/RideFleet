@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
+import { PhotoThumbnail } from '@/components/PhotoThumbnail';
 import { ApiError } from '@/lib/api';
 import { deleteDriver, getDrivers } from '@/lib/drivers';
 import { getPaymentsStatus } from '@/lib/payments';
@@ -110,6 +111,7 @@ function DriversPageContent() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <Th>Foto</Th>
                 <Th>Nombre</Th>
                 <Th>Cédula</Th>
                 <Th>Teléfono</Th>
@@ -126,6 +128,13 @@ function DriversPageContent() {
                 const status = paymentStatus[driver._id];
                 return (
                   <tr key={driver._id}>
+                    <Td>
+                      <PhotoThumbnail
+                        src={driver.photo}
+                        alt={driver.fullName}
+                        rounded="full"
+                      />
+                    </Td>
                     <Td>{driver.fullName}</Td>
                     <Td>{driver.idNumber}</Td>
                     <Td>{driver.phone}</Td>
@@ -138,7 +147,20 @@ function DriversPageContent() {
                         ? formatDate(status.lastPayment.weekEnd)
                         : '—'}
                     </Td>
-                    <Td>{status ? formatCRC(status.currentAmountDue) : '—'}</Td>
+                    <Td>
+                      {status ? (
+                        status.inGracePeriod ? (
+                          <span className="text-gray-500">
+                            {formatCRC(0)}{' '}
+                            <span className="text-xs">(período de gracia)</span>
+                          </span>
+                        ) : (
+                          formatCRC(status.currentAmountDue)
+                        )
+                      ) : (
+                        '—'
+                      )}
+                    </Td>
                     <Td>
                       {status ? (
                         status.pendingBalance > 0 ? (

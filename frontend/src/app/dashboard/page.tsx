@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
+import { PhotoThumbnail } from '@/components/PhotoThumbnail';
 import { ApiError } from '@/lib/api';
 import { clearToken } from '@/lib/auth';
 import {
@@ -245,8 +246,13 @@ function DashboardContent() {
                     <Td>
                       <Link
                         href={`/vehiculos/${alert.vehicleId}/editar`}
-                        className="font-medium text-gray-900 hover:underline"
+                        className="flex items-center gap-3 font-medium text-gray-900 hover:underline"
                       >
+                        <PhotoThumbnail
+                          src={alert.photo}
+                          alt={`${alert.brand} ${alert.model}`}
+                          size={32}
+                        />
                         {alert.brand} {alert.model} ({alert.plate})
                       </Link>
                     </Td>
@@ -305,8 +311,14 @@ function DashboardContent() {
                     <Td>
                       <Link
                         href={`/conductores/${status.driverId}/editar`}
-                        className="font-medium text-gray-900 hover:underline"
+                        className="flex items-center gap-3 font-medium text-gray-900 hover:underline"
                       >
+                        <PhotoThumbnail
+                          src={status.photo}
+                          alt={status.fullName}
+                          size={32}
+                          rounded="full"
+                        />
                         {status.fullName}
                       </Link>
                     </Td>
@@ -397,8 +409,13 @@ function DashboardContent() {
                     <Td>
                       <Link
                         href={`/vehiculos/${row.vehicleId}/editar`}
-                        className="font-medium text-gray-900 hover:underline"
+                        className="flex items-center gap-3 font-medium text-gray-900 hover:underline"
                       >
+                        <PhotoThumbnail
+                          src={row.photo}
+                          alt={`${row.brand} ${row.model}`}
+                          size={32}
+                        />
                         {row.brand} {row.model} ({row.plate})
                       </Link>
                     </Td>

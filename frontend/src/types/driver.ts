@@ -13,6 +13,7 @@ export interface Driver {
   weeklyAmount: number;
   weekStartDay: number;
   deposit?: number;
+  depositCoversFirstWeek: boolean;
   status: DriverStatus;
   createdAt: string;
   updatedAt: string;
@@ -28,6 +29,7 @@ export interface CreateDriverInput {
   weeklyAmount: number;
   weekStartDay: number;
   deposit?: number;
+  depositCoversFirstWeek?: boolean;
   status?: DriverStatus;
 }
 

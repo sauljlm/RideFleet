@@ -44,6 +44,14 @@ export class Driver {
   @Prop({ min: 0 })
   deposit?: number;
 
+  /**
+   * Si es true, la primera semana de contrato (la que contiene
+   * contractStartDate) se considera cubierta por el depósito: no se espera
+   * pago de renta esa semana, y no debe marcarse como atrasada.
+   */
+  @Prop({ type: Boolean, default: false })
+  depositCoversFirstWeek: boolean;
+
   @Prop({
     type: String,
     enum: DriverStatus,
