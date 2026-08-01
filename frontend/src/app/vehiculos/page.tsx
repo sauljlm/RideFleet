@@ -5,13 +5,10 @@ import { useEffect, useState } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
 import { PhotoThumbnail } from '@/components/PhotoThumbnail';
 import { ApiError } from '@/lib/api';
-import { clearToken } from '@/lib/auth';
 import { deleteVehicle, getVehicles } from '@/lib/vehicles';
 import { VEHICLE_STATUS_LABELS, type Vehicle } from '@/types/vehicle';
-import { useRouter } from 'next/navigation';
 
 function VehiclesPageContent() {
-  const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,41 +50,16 @@ function VehiclesPageContent() {
     }
   }
 
-  function handleLogout() {
-    clearToken();
-    router.replace('/login');
-  }
-
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Flota de vehículos</h1>
-        <div className="flex gap-3">
-          <Link
-            href="/dashboard"
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Dashboard
-          </Link>
-          <Link
-            href="/conductores"
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Conductores
-          </Link>
-          <Link
-            href="/vehiculos/nuevo"
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
-          >
-            + Nuevo vehículo
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Cerrar sesión
-          </button>
-        </div>
+        <Link
+          href="/vehiculos/nuevo"
+          className="inline-block rounded-md bg-gray-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-gray-800"
+        >
+          + Nuevo vehículo
+        </Link>
       </div>
 
       {loading && <p className="text-sm text-gray-500">Cargando…</p>}
@@ -100,7 +72,7 @@ function VehiclesPageContent() {
       )}
 
       {!loading && vehicles.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-gray-200">
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>

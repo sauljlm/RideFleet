@@ -19,22 +19,30 @@ export class VehiclesService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  async create(dto: CreateVehicleDto): Promise<VehicleDocument> {
+  async create(
+    dto: CreateVehicleDto,
+    ownerId: string,
+  ): Promise<VehicleDocument> {
     const initialMileage = dto.currentMileage ?? 0;
     const vehicle = new this.vehicleModel({
       ...dto,
+      ownerId,
       currentMileage: initialMileage,
       mileageHistory: [{ date: new Date(), mileage: initialMileage }],
     });
     return vehicle.save();
   }
 
-  findAll(): Promise<VehicleDocument[]> {
-    return this.vehicleModel.find().sort({ createdAt: -1 }).exec();
+  findAll(ownerId: string): Promise<VehicleDocument[]> {
+    return this.vehicleModel.find({ ownerId }).sort({ createdAt: -1 }).exec();
   }
 
-  async findOne(id: string, populateDriver = false): Promise<VehicleDocument> {
-    const query = this.vehicleModel.findById(id);
+  async findOne(
+    id: string,
+    ownerId: string,
+    populateDriver = false,
+  ): Promise<VehicleDocument> {
+    const query = this.vehicleModel.findOne({ _id: id, ownerId });
     if (populateDriver) {
       query.populate('currentDriverId', 'fullName phone status');
     }
@@ -45,9 +53,13 @@ export class VehiclesService {
     return vehicle;
   }
 
-  async update(id: string, dto: UpdateVehicleDto): Promise<VehicleDocument> {
+  async update(
+    id: string,
+    dto: UpdateVehicleDto,
+    ownerId: string,
+  ): Promise<VehicleDocument> {
     const vehicle = await this.vehicleModel
-      .findByIdAndUpdate(id, dto, { new: true })
+      .findOneAndUpdate({ _id: id, ownerId }, dto, { new: true })
       .exec();
     if (!vehicle) {
       throw new NotFoundException('Vehículo no encontrado');
@@ -55,8 +67,10 @@ export class VehiclesService {
     return vehicle;
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.vehicleModel.findByIdAndDelete(id).exec();
+  async remove(id: string, ownerId: string): Promise<void> {
+    const result = await this.vehicleModel
+      .findOneAndDelete({ _id: id, ownerId })
+      .exec();
     if (!result) {
       throw new NotFoundException('Vehículo no encontrado');
     }
@@ -65,8 +79,9 @@ export class VehiclesService {
   async updateMileage(
     id: string,
     dto: UpdateMileageDto,
+    ownerId: string,
   ): Promise<VehicleDocument> {
-    const vehicle = await this.findOne(id);
+    const vehicle = await this.findOne(id, ownerId);
 
     if (dto.mileage < vehicle.currentMileage) {
       throw new BadRequestException(
@@ -83,8 +98,9 @@ export class VehiclesService {
     id: string,
     mileage: number,
     date: Date,
+    ownerId: string,
   ): Promise<void> {
-    const vehicle = await this.findOne(id);
+    const vehicle = await this.findOne(id, ownerId);
     if (mileage > vehicle.currentMileage) {
       vehicle.currentMileage = mileage;
       vehicle.mileageHistory.push({ date, mileage });
@@ -95,8 +111,9 @@ export class VehiclesService {
   async addPhotos(
     id: string,
     files: Express.Multer.File[],
+    ownerId: string,
   ): Promise<VehicleDocument> {
-    const vehicle = await this.findOne(id);
+    const vehicle = await this.findOne(id, ownerId);
     const urls = await this.uploadFiles(files, 'ridefleet/vehicles/photos');
     vehicle.photos.push(...urls);
     return vehicle.save();
@@ -105,8 +122,9 @@ export class VehiclesService {
   async addDocuments(
     id: string,
     files: Express.Multer.File[],
+    ownerId: string,
   ): Promise<VehicleDocument> {
-    const vehicle = await this.findOne(id);
+    const vehicle = await this.findOne(id, ownerId);
     const urls = await this.uploadFiles(files, 'ridefleet/vehicles/documents');
     vehicle.documents.push(...urls);
     return vehicle.save();
@@ -115,9 +133,10 @@ export class VehiclesService {
   async updateCurrentDriver(
     id: string,
     driverId: string | null,
+    ownerId: string,
   ): Promise<void> {
     const result = await this.vehicleModel
-      .updateOne({ _id: id }, { currentDriverId: driverId })
+      .updateOne({ _id: id, ownerId }, { currentDriverId: driverId })
       .exec();
     if (result.matchedCount === 0) {
       throw new NotFoundException('Vehículo no encontrado');

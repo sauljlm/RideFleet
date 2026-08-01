@@ -38,11 +38,15 @@ export class PaymentsService {
     private readonly assignmentsService: AssignmentsService,
   ) {}
 
-  async create(dto: CreatePaymentDto): Promise<PaymentDocument> {
-    const driver = await this.driversService.findOne(dto.driverId);
+  async create(
+    dto: CreatePaymentDto,
+    ownerId: string,
+  ): Promise<PaymentDocument> {
+    const driver = await this.driversService.findOne(dto.driverId, ownerId);
 
     const activeAssignment = await this.assignmentsService.findActiveByDriver(
       dto.driverId,
+      ownerId,
     );
     if (!activeAssignment) {
       throw new BadRequestException(
@@ -56,7 +60,7 @@ export class PaymentsService {
     );
 
     const existing = await this.paymentModel
-      .findOne({ driverId: dto.driverId, weekStart })
+      .findOne({ driverId: dto.driverId, ownerId, weekStart })
       .exec();
     if (existing) {
       throw new BadRequestException(
@@ -65,7 +69,11 @@ export class PaymentsService {
     }
 
     const previousPayment = await this.paymentModel
-      .findOne({ driverId: dto.driverId, weekStart: { $lt: weekStart } })
+      .findOne({
+        driverId: dto.driverId,
+        ownerId,
+        weekStart: { $lt: weekStart },
+      })
       .sort({ weekStart: -1 })
       .exec();
     const previousBalance = previousPayment?.remainingBalance ?? 0;
@@ -73,6 +81,7 @@ export class PaymentsService {
     const remainingBalance = Math.max(0, amountDue - dto.amountPaid);
 
     const payment = new this.paymentModel({
+      ownerId,
       driverId: dto.driverId,
       vehicleId: activeAssignment.vehicleId,
       paymentDate: dto.paymentDate,
@@ -89,12 +98,17 @@ export class PaymentsService {
     // Si se está registrando un pago retroactivo (semana anterior a pagos ya
     // existentes), la cadena de saldos de las semanas posteriores cambia.
     const nextPayment = await this.paymentModel
-      .findOne({ driverId: dto.driverId, weekStart: { $gt: weekStart } })
+      .findOne({
+        driverId: dto.driverId,
+        ownerId,
+        weekStart: { $gt: weekStart },
+      })
       .sort({ weekStart: 1 })
       .exec();
     if (nextPayment) {
       await this.recalculateFrom(
         dto.driverId,
+        ownerId,
         nextPayment.weekStart,
         remainingBalance,
       );
@@ -103,20 +117,29 @@ export class PaymentsService {
     return payment;
   }
 
-  findByDriver(driverId: string): Promise<PaymentDocument[]> {
-    return this.paymentModel.find({ driverId }).sort({ weekStart: -1 }).exec();
+  findByDriver(driverId: string, ownerId: string): Promise<PaymentDocument[]> {
+    return this.paymentModel
+      .find({ driverId, ownerId })
+      .sort({ weekStart: -1 })
+      .exec();
   }
 
-  async findOne(id: string): Promise<PaymentDocument> {
-    const payment = await this.paymentModel.findById(id).exec();
+  async findOne(id: string, ownerId: string): Promise<PaymentDocument> {
+    const payment = await this.paymentModel
+      .findOne({ _id: id, ownerId })
+      .exec();
     if (!payment) {
       throw new NotFoundException('Pago no encontrado');
     }
     return payment;
   }
 
-  async update(id: string, dto: UpdatePaymentDto): Promise<PaymentDocument> {
-    const payment = await this.findOne(id);
+  async update(
+    id: string,
+    dto: UpdatePaymentDto,
+    ownerId: string,
+  ): Promise<PaymentDocument> {
+    const payment = await this.findOne(id, ownerId);
 
     if (dto.paymentDate !== undefined) {
       payment.paymentDate = new Date(dto.paymentDate);
@@ -133,41 +156,43 @@ export class PaymentsService {
     // los pagos posteriores del conductor.
     await this.recalculateFrom(
       payment.driverId.toString(),
+      ownerId,
       payment.weekStart,
       payment.previousBalance,
     );
 
-    return this.findOne(id);
+    return this.findOne(id, ownerId);
   }
 
-  async remove(id: string): Promise<void> {
-    const payment = await this.findOne(id);
+  async remove(id: string, ownerId: string): Promise<void> {
+    const payment = await this.findOne(id, ownerId);
     const driverId = payment.driverId.toString();
     const weekStart = payment.weekStart;
 
-    await this.paymentModel.findByIdAndDelete(id).exec();
+    await this.paymentModel.findOneAndDelete({ _id: id, ownerId }).exec();
 
     const nextPayment = await this.paymentModel
-      .findOne({ driverId, weekStart: { $gt: weekStart } })
+      .findOne({ driverId, ownerId, weekStart: { $gt: weekStart } })
       .sort({ weekStart: 1 })
       .exec();
 
     if (nextPayment) {
       const prevPayment = await this.paymentModel
-        .findOne({ driverId, weekStart: { $lt: weekStart } })
+        .findOne({ driverId, ownerId, weekStart: { $lt: weekStart } })
         .sort({ weekStart: -1 })
         .exec();
       const initialPreviousBalance = prevPayment?.remainingBalance ?? 0;
       await this.recalculateFrom(
         driverId,
+        ownerId,
         nextPayment.weekStart,
         initialPreviousBalance,
       );
     }
   }
 
-  async getCurrentStatus(): Promise<DriverPaymentStatus[]> {
-    const allDrivers = await this.driversService.findAll();
+  async getCurrentStatus(ownerId: string): Promise<DriverPaymentStatus[]> {
+    const allDrivers = await this.driversService.findAll(ownerId);
     const activeDrivers = allDrivers.filter(
       (driver) => driver.status === DriverStatus.ACTIVO,
     );
@@ -175,7 +200,7 @@ export class PaymentsService {
     const results: DriverPaymentStatus[] = [];
     for (const driver of activeDrivers) {
       const lastPayment = await this.paymentModel
-        .findOne({ driverId: driver._id })
+        .findOne({ driverId: driver._id, ownerId })
         .sort({ weekStart: -1 })
         .exec();
 
@@ -203,6 +228,7 @@ export class PaymentsService {
         : Boolean(
             await this.paymentModel.exists({
               driverId: driver._id,
+              ownerId,
               weekStart: todayWeekStart,
             }),
           );
@@ -243,11 +269,12 @@ export class PaymentsService {
    */
   private async recalculateFrom(
     driverId: string,
+    ownerId: string,
     fromWeekStart: Date,
     initialPreviousBalance: number,
   ): Promise<void> {
     const payments = await this.paymentModel
-      .find({ driverId, weekStart: { $gte: fromWeekStart } })
+      .find({ driverId, ownerId, weekStart: { $gte: fromWeekStart } })
       .sort({ weekStart: 1 })
       .exec();
 

@@ -18,3 +18,11 @@ export function getAssignmentsByDriver(
 ): Promise<Assignment[]> {
   return apiGet<Assignment[]>(`/assignments/driver/${driverId}`);
 }
+
+export function unassignVehicle(vehicleId: string): Promise<{ success: true }> {
+  return apiPost<{ success: true }>(`/assignments/vehicle/${vehicleId}/unassign`, {});
+}
+
+export function unassignDriver(driverId: string): Promise<{ success: true }> {
+  return apiPost<{ success: true }>(`/assignments/driver/${driverId}/unassign`, {});
+}

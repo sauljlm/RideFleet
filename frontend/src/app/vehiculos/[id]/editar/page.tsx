@@ -1,15 +1,21 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChangeEvent, useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
 import { MaintenanceSection } from '@/components/MaintenanceSection';
 import { VehicleForm } from '@/components/VehicleForm';
 import { ApiError } from '@/lib/api';
-import { createAssignment } from '@/lib/assignments';
+import { createAssignment, unassignVehicle } from '@/lib/assignments';
 import { getDrivers } from '@/lib/drivers';
-import { getVehicle, updateVehicle, uploadVehiclePhotos } from '@/lib/vehicles';
+import {
+  getVehicle,
+  getVehicles,
+  updateVehicle,
+  uploadVehiclePhotos,
+} from '@/lib/vehicles';
 import type { Driver } from '@/types/driver';
 import type { PopulatedDriverRef, Vehicle } from '@/types/vehicle';
 
@@ -19,10 +25,22 @@ function EditVehicleContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
+  const pendingPhotoPreviews = useMemo(
+    () => pendingPhotos.map((file) => URL.createObjectURL(file)),
+    [pendingPhotos],
+  );
+  useEffect(() => {
+    return () => {
+      pendingPhotoPreviews.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [pendingPhotoPreviews]);
+
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [otherVehicles, setOtherVehicles] = useState<Vehicle[]>([]);
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
@@ -66,21 +84,46 @@ function EditVehicleContent() {
     };
   }, []);
 
-  async function handlePhotosChange(event: ChangeEvent<HTMLInputElement>) {
+  useEffect(() => {
+    let ignore = false;
+    getVehicles()
+      .then((data) => {
+        if (!ignore) setOtherVehicles(data.filter((v) => v._id !== params.id));
+      })
+      .catch(() => {
+        // Se usa solo para filtrar conductores ya asignados; si falla, no se filtra.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [params.id]);
+
+  function handlePhotosChange(event: ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
     if (!files || files.length === 0) return;
     setPhotoError(null);
+    setPendingPhotos((prev) => [...prev, ...Array.from(files)]);
+    event.target.value = '';
+  }
+
+  function handleRemovePendingPhoto(index: number) {
+    setPendingPhotos((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleSavePhotos() {
+    if (pendingPhotos.length === 0) return;
+    setPhotoError(null);
     setPhotoUploading(true);
     try {
-      const updated = await uploadVehiclePhotos(params.id, files);
+      const updated = await uploadVehiclePhotos(params.id, pendingPhotos);
       setVehicle(updated);
+      setPendingPhotos([]);
     } catch (err) {
       setPhotoError(
         err instanceof ApiError ? err.message : 'No se pudo subir la foto',
       );
     } finally {
       setPhotoUploading(false);
-      event.target.value = '';
     }
   }
 
@@ -93,8 +136,12 @@ function EditVehicleContent() {
         vehicleId: params.id,
         driverId: selectedDriverId,
       });
-      const updated = await getVehicle(params.id);
+      const [updated, updatedVehicles] = await Promise.all([
+        getVehicle(params.id),
+        getVehicles(),
+      ]);
       setVehicle(updated);
+      setOtherVehicles(updatedVehicles.filter((v) => v._id !== params.id));
       setSelectedDriverId('');
     } catch (err) {
       setAssignError(
@@ -104,6 +151,37 @@ function EditVehicleContent() {
       setAssigning(false);
     }
   }
+
+  async function handleUnassign() {
+    setAssignError(null);
+    setAssigning(true);
+    try {
+      await unassignVehicle(params.id);
+      const [updated, updatedVehicles] = await Promise.all([
+        getVehicle(params.id),
+        getVehicles(),
+      ]);
+      setVehicle(updated);
+      setOtherVehicles(updatedVehicles.filter((v) => v._id !== params.id));
+    } catch (err) {
+      setAssignError(
+        err instanceof ApiError ? err.message : 'No se pudo quitar la asignación',
+      );
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  const assignedDriverIds = new Set(
+    otherVehicles
+      .map((v) =>
+        typeof v.currentDriverId === 'string'
+          ? v.currentDriverId
+          : v.currentDriverId?._id,
+      )
+      .filter((id): id is string => Boolean(id)),
+  );
+  const availableDrivers = drivers.filter((d) => !assignedDriverIds.has(d._id));
 
   const currentDriver: PopulatedDriverRef | null =
     vehicle && typeof vehicle.currentDriverId === 'object'
@@ -152,9 +230,44 @@ function EditVehicleContent() {
               disabled={photoUploading}
               className="file-input"
             />
-            {photoUploading && (
-              <p className="mt-1 text-sm text-gray-500">Subiendo…</p>
+
+            {pendingPhotos.length > 0 && (
+              <div className="mt-3">
+                <p className="mb-2 text-sm text-gray-500">
+                  Fotos por guardar:
+                </p>
+                <div className="mb-3 flex flex-wrap gap-3">
+                  {pendingPhotoPreviews.map((url, index) => (
+                    <div key={url} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt=""
+                        className="h-28 w-28 rounded-md object-cover opacity-75"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePendingPhoto(index)}
+                        disabled={photoUploading}
+                        className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-xs text-white hover:bg-gray-800 disabled:opacity-50"
+                        aria-label="Quitar foto"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSavePhotos}
+                  disabled={photoUploading}
+                  className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                >
+                  {photoUploading ? 'Guardando…' : 'Guardar fotos'}
+                </button>
+              </div>
             )}
+
             {photoError && (
               <p className="mt-1 text-sm text-red-600">{photoError}</p>
             )}
@@ -169,27 +282,51 @@ function EditVehicleContent() {
                 ? `Actual: ${currentDriver.fullName} (${currentDriver.phone})`
                 : 'Este vehículo no tiene conductor asignado.'}
             </p>
-            <div className="flex gap-3">
-              <select
-                value={selectedDriverId}
-                onChange={(e) => setSelectedDriverId(e.target.value)}
-                className="input max-w-xs"
-              >
-                <option value="">Selecciona un conductor…</option>
-                {drivers.map((driver) => (
-                  <option key={driver._id} value={driver._id}>
-                    {driver.fullName}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleAssign}
-                disabled={!selectedDriverId || assigning}
-                className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-              >
-                {assigning ? 'Asignando…' : 'Asignar / reasignar'}
-              </button>
+            <div className="flex flex-wrap gap-3">
+              {availableDrivers.length > 0 ? (
+                <>
+                  <select
+                    value={selectedDriverId}
+                    onChange={(e) => setSelectedDriverId(e.target.value)}
+                    className="input max-w-xs"
+                  >
+                    <option value="">Selecciona un conductor…</option>
+                    {availableDrivers.map((driver) => (
+                      <option key={driver._id} value={driver._id}>
+                        {driver.fullName}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAssign}
+                    disabled={!selectedDriverId || assigning}
+                    className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    {assigning ? 'Asignando…' : 'Asignar / reasignar'}
+                  </button>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  No hay conductores disponibles.{' '}
+                  <Link
+                    href="/conductores/nuevo"
+                    className="font-medium text-gray-900 hover:underline"
+                  >
+                    Registrar un conductor
+                  </Link>
+                </p>
+              )}
+              {currentDriver && (
+                <button
+                  type="button"
+                  onClick={handleUnassign}
+                  disabled={assigning}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {assigning ? 'Quitando…' : 'Quitar asignación'}
+                </button>
+              )}
             </div>
             {assignError && (
               <p className="mt-2 text-sm text-red-600">{assignError}</p>

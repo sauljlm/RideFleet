@@ -1,0 +1,4 @@
+# Escrito por backend/src/main.ts en desarrollo local; leído por el proxy
+# del frontend (frontend/src/app/api/backend/[...path]/route.ts) para
+# descubrir el puerto real del backend. No se comparte entre máquinas.
+.dev-backend-port

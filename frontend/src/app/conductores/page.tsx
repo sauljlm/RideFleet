@@ -73,28 +73,14 @@ function DriversPageContent() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Conductores</h1>
-        <div className="flex gap-3">
-          <Link
-            href="/dashboard"
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Dashboard
-          </Link>
-          <Link
-            href="/vehiculos"
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Vehículos
-          </Link>
-          <Link
-            href="/conductores/nuevo"
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
-          >
-            + Nuevo conductor
-          </Link>
-        </div>
+        <Link
+          href="/conductores/nuevo"
+          className="inline-block rounded-md bg-gray-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-gray-800"
+        >
+          + Nuevo conductor
+        </Link>
       </div>
 
       {loading && <p className="text-sm text-gray-500">Cargando…</p>}

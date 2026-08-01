@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { ApiError, apiPost } from '@/lib/api';
@@ -76,7 +77,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input"
+                className="input min-w-0"
               />
               <button
                 type="button"
@@ -96,6 +97,23 @@ export default function LoginPage() {
             {loading ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
+        <div className="mt-4 flex flex-col items-center gap-2 text-sm text-gray-600">
+          <Link
+            href="/recuperar-contrasena"
+            className="font-medium text-gray-900 hover:underline"
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+          <p>
+            ¿No tienes cuenta?{' '}
+            <Link
+              href="/registro"
+              className="font-medium text-gray-900 hover:underline"
+            >
+              Regístrate
+            </Link>
+          </p>
+        </div>
       </div>
     </main>
   );

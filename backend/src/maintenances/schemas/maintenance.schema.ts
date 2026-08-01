@@ -12,6 +12,14 @@ export enum MaintenanceType {
 
 @Schema({ timestamps: true })
 export class Maintenance {
+  @Prop({
+    type: SchemaTypes.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  })
+  ownerId: Types.ObjectId;
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Vehicle', required: true })
   vehicleId: Types.ObjectId;
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { DriverStatus } from '../drivers/schemas/driver.schema';
 import { DriversService } from '../drivers/drivers.service';
 import {
@@ -63,10 +63,12 @@ export class DashboardService {
     private readonly maintenanceModel: Model<MaintenanceDocument>,
   ) {}
 
-  async getSummary(): Promise<DashboardSummary> {
+  async getSummary(ownerId: string): Promise<DashboardSummary> {
+    const ownerObjectId = new Types.ObjectId(ownerId);
+
     const [vehicles, drivers] = await Promise.all([
-      this.vehiclesService.findAll(),
-      this.driversService.findAll(),
+      this.vehiclesService.findAll(ownerId),
+      this.driversService.findAll(ownerId),
     ]);
 
     const activeVehicles = vehicles.filter(
@@ -81,7 +83,13 @@ export class DashboardService {
     const weekRevenueResult = await this.paymentModel.aggregate<{
       total: number;
     }>([
-      { $match: { weekStart: { $lte: today }, weekEnd: { $gte: today } } },
+      {
+        $match: {
+          ownerId: ownerObjectId,
+          weekStart: { $lte: today },
+          weekEnd: { $gte: today },
+        },
+      },
       { $group: { _id: null, total: { $sum: '$amountPaid' } } },
     ]);
 
@@ -93,7 +101,12 @@ export class DashboardService {
     const monthRevenueResult = await this.paymentModel.aggregate<{
       total: number;
     }>([
-      { $match: { paymentDate: { $gte: monthStart, $lte: monthEnd } } },
+      {
+        $match: {
+          ownerId: ownerObjectId,
+          paymentDate: { $gte: monthStart, $lte: monthEnd },
+        },
+      },
       { $group: { _id: null, total: { $sum: '$amountPaid' } } },
     ]);
 
@@ -105,13 +118,15 @@ export class DashboardService {
     };
   }
 
-  async getMaintenanceAlerts(): Promise<MaintenanceAlert[]> {
+  async getMaintenanceAlerts(ownerId: string): Promise<MaintenanceAlert[]> {
+    const ownerObjectId = new Types.ObjectId(ownerId);
+
     const lastPreventiveByVehicle = await this.maintenanceModel.aggregate<{
       _id: unknown;
       lastMileageAtService: number;
       lastDate: Date;
     }>([
-      { $match: { type: MaintenanceType.PREVENTIVO } },
+      { $match: { ownerId: ownerObjectId, type: MaintenanceType.PREVENTIVO } },
       { $sort: { date: -1 } },
       {
         $group: {
@@ -126,7 +141,7 @@ export class DashboardService {
       lastPreventiveByVehicle.map((r) => [String(r._id), r]),
     );
 
-    const vehicles = await this.vehiclesService.findAll();
+    const vehicles = await this.vehiclesService.findAll(ownerId);
     const alerts: MaintenanceAlert[] = [];
 
     for (const vehicle of vehicles) {
@@ -171,8 +186,8 @@ export class DashboardService {
     );
   }
 
-  async getLatePayments(): Promise<DriverPaymentStatus[]> {
-    const statuses = await this.paymentsService.getCurrentStatus();
+  async getLatePayments(ownerId: string): Promise<DriverPaymentStatus[]> {
+    const statuses = await this.paymentsService.getCurrentStatus(ownerId);
     return statuses.filter(
       (s) => !s.hasPaidCurrentWeek || s.pendingBalance > 0,
     );
@@ -181,21 +196,33 @@ export class DashboardService {
   async getProfitability(
     startDate: Date,
     endDate: Date,
+    ownerId: string,
   ): Promise<VehicleProfitability[]> {
-    const vehicles = await this.vehiclesService.findAll();
+    const ownerObjectId = new Types.ObjectId(ownerId);
+    const vehicles = await this.vehiclesService.findAll(ownerId);
 
     const revenueByVehicle = await this.paymentModel.aggregate<{
       _id: unknown;
       total: number;
     }>([
-      { $match: { paymentDate: { $gte: startDate, $lte: endDate } } },
+      {
+        $match: {
+          ownerId: ownerObjectId,
+          paymentDate: { $gte: startDate, $lte: endDate },
+        },
+      },
       { $group: { _id: '$vehicleId', total: { $sum: '$amountPaid' } } },
     ]);
     const costByVehicle = await this.maintenanceModel.aggregate<{
       _id: unknown;
       total: number;
     }>([
-      { $match: { date: { $gte: startDate, $lte: endDate } } },
+      {
+        $match: {
+          ownerId: ownerObjectId,
+          date: { $gte: startDate, $lte: endDate },
+        },
+      },
       { $group: { _id: '$vehicleId', total: { $sum: '$cost' } } },
     ]);
 

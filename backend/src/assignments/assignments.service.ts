@@ -15,15 +15,18 @@ export class AssignmentsService {
     private readonly driversService: DriversService,
   ) {}
 
-  async create(dto: CreateAssignmentDto): Promise<AssignmentDocument> {
-    await this.vehiclesService.findOne(dto.vehicleId);
-    await this.driversService.findOne(dto.driverId);
+  async create(
+    dto: CreateAssignmentDto,
+    ownerId: string,
+  ): Promise<AssignmentDocument> {
+    await this.vehiclesService.findOne(dto.vehicleId, ownerId);
+    await this.driversService.findOne(dto.driverId, ownerId);
 
     const startDate = dto.startDate ? new Date(dto.startDate) : new Date();
 
     // Cierra la asignación activa anterior de este vehículo, si existe.
     await this.assignmentModel.updateMany(
-      { vehicleId: dto.vehicleId, endDate: null },
+      { vehicleId: dto.vehicleId, ownerId, endDate: null },
       { endDate: startDate },
     );
 
@@ -33,6 +36,7 @@ export class AssignmentsService {
     const driverPreviousActive = await this.assignmentModel
       .findOne({
         driverId: dto.driverId,
+        ownerId,
         endDate: null,
         vehicleId: { $ne: dto.vehicleId },
       })
@@ -46,10 +50,12 @@ export class AssignmentsService {
       await this.vehiclesService.updateCurrentDriver(
         driverPreviousActive.vehicleId.toString(),
         null,
+        ownerId,
       );
     }
 
     const assignment = new this.assignmentModel({
+      ownerId,
       vehicleId: dto.vehicleId,
       driverId: dto.driverId,
       startDate,
@@ -57,28 +63,78 @@ export class AssignmentsService {
     });
     await assignment.save();
 
-    await this.vehiclesService.updateCurrentDriver(dto.vehicleId, dto.driverId);
+    await this.vehiclesService.updateCurrentDriver(
+      dto.vehicleId,
+      dto.driverId,
+      ownerId,
+    );
 
     return assignment;
   }
 
-  findByVehicle(vehicleId: string): Promise<AssignmentDocument[]> {
+  findByVehicle(
+    vehicleId: string,
+    ownerId: string,
+  ): Promise<AssignmentDocument[]> {
     return this.assignmentModel
-      .find({ vehicleId })
+      .find({ vehicleId, ownerId })
       .sort({ startDate: -1 })
       .populate('driverId', 'fullName phone status')
       .exec();
   }
 
-  findByDriver(driverId: string): Promise<AssignmentDocument[]> {
+  findByDriver(
+    driverId: string,
+    ownerId: string,
+  ): Promise<AssignmentDocument[]> {
     return this.assignmentModel
-      .find({ driverId })
+      .find({ driverId, ownerId })
       .sort({ startDate: -1 })
       .populate('vehicleId', 'brand model plate status')
       .exec();
   }
 
-  findActiveByDriver(driverId: string): Promise<AssignmentDocument | null> {
-    return this.assignmentModel.findOne({ driverId, endDate: null }).exec();
+  findActiveByDriver(
+    driverId: string,
+    ownerId: string,
+  ): Promise<AssignmentDocument | null> {
+    return this.assignmentModel
+      .findOne({ driverId, ownerId, endDate: null })
+      .exec();
+  }
+
+  async unassignVehicle(
+    vehicleId: string,
+    ownerId: string,
+  ): Promise<{ success: true }> {
+    await this.vehiclesService.findOne(vehicleId, ownerId);
+
+    await this.assignmentModel.updateMany(
+      { vehicleId, ownerId, endDate: null },
+      { endDate: new Date() },
+    );
+    await this.vehiclesService.updateCurrentDriver(vehicleId, null, ownerId);
+    return { success: true };
+  }
+
+  async unassignDriver(
+    driverId: string,
+    ownerId: string,
+  ): Promise<{ success: true }> {
+    await this.driversService.findOne(driverId, ownerId);
+
+    const active = await this.findActiveByDriver(driverId, ownerId);
+    if (active) {
+      await this.assignmentModel.updateOne(
+        { _id: active._id },
+        { endDate: new Date() },
+      );
+      await this.vehiclesService.updateCurrentDriver(
+        active.vehicleId.toString(),
+        null,
+        ownerId,
+      );
+    }
+    return { success: true };
   }
 }

@@ -18,26 +18,30 @@ export class DriversService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  create(dto: CreateDriverDto): Promise<DriverDocument> {
-    const driver = new this.driverModel(dto);
+  create(dto: CreateDriverDto, ownerId: string): Promise<DriverDocument> {
+    const driver = new this.driverModel({ ...dto, ownerId });
     return driver.save();
   }
 
-  findAll(): Promise<DriverDocument[]> {
-    return this.driverModel.find().sort({ createdAt: -1 }).exec();
+  findAll(ownerId: string): Promise<DriverDocument[]> {
+    return this.driverModel.find({ ownerId }).sort({ createdAt: -1 }).exec();
   }
 
-  async findOne(id: string): Promise<DriverDocument> {
-    const driver = await this.driverModel.findById(id).exec();
+  async findOne(id: string, ownerId: string): Promise<DriverDocument> {
+    const driver = await this.driverModel.findOne({ _id: id, ownerId }).exec();
     if (!driver) {
       throw new NotFoundException('Conductor no encontrado');
     }
     return driver;
   }
 
-  async update(id: string, dto: UpdateDriverDto): Promise<DriverDocument> {
+  async update(
+    id: string,
+    dto: UpdateDriverDto,
+    ownerId: string,
+  ): Promise<DriverDocument> {
     const driver = await this.driverModel
-      .findByIdAndUpdate(id, dto, { new: true })
+      .findOneAndUpdate({ _id: id, ownerId }, dto, { new: true })
       .exec();
     if (!driver) {
       throw new NotFoundException('Conductor no encontrado');
@@ -45,8 +49,10 @@ export class DriversService {
     return driver;
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.driverModel.findByIdAndDelete(id).exec();
+  async remove(id: string, ownerId: string): Promise<void> {
+    const result = await this.driverModel
+      .findOneAndDelete({ _id: id, ownerId })
+      .exec();
     if (!result) {
       throw new NotFoundException('Conductor no encontrado');
     }
@@ -55,11 +61,12 @@ export class DriversService {
   async setPhoto(
     id: string,
     file: Express.Multer.File,
+    ownerId: string,
   ): Promise<DriverDocument> {
     if (!file) {
       throw new BadRequestException('No se recibió ningún archivo');
     }
-    const driver = await this.findOne(id);
+    const driver = await this.findOne(id, ownerId);
     const result = await this.cloudinaryService.uploadBuffer(
       file.buffer,
       'ridefleet/drivers/photos',
@@ -71,11 +78,12 @@ export class DriversService {
   async addContractPhotos(
     id: string,
     files: Express.Multer.File[],
+    ownerId: string,
   ): Promise<DriverDocument> {
     if (!files || files.length === 0) {
       throw new BadRequestException('No se recibió ningún archivo');
     }
-    const driver = await this.findOne(id);
+    const driver = await this.findOne(id, ownerId);
     const results = await Promise.all(
       files.map((file) =>
         this.cloudinaryService.uploadBuffer(

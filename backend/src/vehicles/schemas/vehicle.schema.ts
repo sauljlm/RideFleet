@@ -23,6 +23,14 @@ export const MileageEntrySchema = SchemaFactory.createForClass(MileageEntry);
 
 @Schema({ timestamps: true })
 export class Vehicle {
+  @Prop({
+    type: SchemaTypes.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  })
+  ownerId: Types.ObjectId;
+
   @Prop({ required: true, trim: true })
   brand: string;
 

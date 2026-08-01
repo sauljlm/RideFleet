@@ -8,6 +8,11 @@ export interface JwtPayload {
   username: string;
 }
 
+export interface JwtPayloadUser {
+  userId: string;
+  username: string;
+}
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(configService: ConfigService) {
@@ -18,7 +23,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload) {
+  validate(payload: JwtPayload): JwtPayloadUser {
     return { userId: payload.sub, username: payload.username };
   }
 }

@@ -1,6 +1,12 @@
 import { clearToken, getToken } from './auth';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
+// Sin NEXT_PUBLIC_API_URL (caso local, ver README) se usa el proxy interno
+// del propio Next.js (frontend/src/app/api/backend/[...path]/route.ts), que
+// descubre en tiempo real el puerto real del backend. Así el navegador nunca
+// necesita saber a qué puerto cayó el backend tras un fallback de puerto.
+// Con NEXT_PUBLIC_API_URL definido (ej. producción, backend en otro host)
+// se usa esa URL directamente y el proxy queda sin uso.
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api/backend';
 
 export class ApiError extends Error {
   constructor(
@@ -79,6 +85,26 @@ export async function apiUpload<T>(
 ): Promise<T> {
   const formData = new FormData();
   Array.from(files).forEach((file) => formData.append(fieldName, file));
+
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData,
+  });
+  return handleResponse<T>(res);
+}
+
+export async function apiUploadForm<T>(
+  path: string,
+  fields: Record<string, string>,
+  file?: File | null,
+  fileFieldName = 'photo',
+): Promise<T> {
+  const formData = new FormData();
+  Object.entries(fields).forEach(([key, value]) => formData.append(key, value));
+  if (file) {
+    formData.append(fileFieldName, file);
+  }
 
   const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',

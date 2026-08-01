@@ -10,6 +10,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { JwtPayloadUser } from '../auth/strategies/jwt.strategy';
 import {
   imageUploadOptions,
   MAX_FILES_PER_UPLOAD,
@@ -23,36 +25,47 @@ export class MaintenancesController {
   constructor(private readonly maintenancesService: MaintenancesService) {}
 
   @Post()
-  create(@Body() createMaintenanceDto: CreateMaintenanceDto) {
-    return this.maintenancesService.create(createMaintenanceDto);
+  create(
+    @Body() createMaintenanceDto: CreateMaintenanceDto,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.maintenancesService.create(createMaintenanceDto, user.userId);
   }
 
   @Get()
-  findAll() {
-    return this.maintenancesService.findAll();
+  findAll(@CurrentUser() user: JwtPayloadUser) {
+    return this.maintenancesService.findAll(user.userId);
   }
 
   @Get('vehicle/:vehicleId')
-  findByVehicle(@Param('vehicleId') vehicleId: string) {
-    return this.maintenancesService.findByVehicle(vehicleId);
+  findByVehicle(
+    @Param('vehicleId') vehicleId: string,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.maintenancesService.findByVehicle(vehicleId, user.userId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.maintenancesService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: JwtPayloadUser) {
+    return this.maintenancesService.findOne(id, user.userId);
   }
 
   @Patch(':id')
   update(
     @Param('id') id: string,
     @Body() updateMaintenanceDto: UpdateMaintenanceDto,
+    @CurrentUser() user: JwtPayloadUser,
   ) {
-    return this.maintenancesService.update(id, updateMaintenanceDto);
+    return this.maintenancesService.update(
+      id,
+      updateMaintenanceDto,
+      user.userId,
+    );
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.maintenancesService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: JwtPayloadUser) {
+    return this.maintenancesService.remove(id, user.userId);
   }
 
   @Post(':id/photos')
@@ -62,7 +75,8 @@ export class MaintenancesController {
   addPhotos(
     @Param('id') id: string,
     @UploadedFiles() files: Express.Multer.File[],
+    @CurrentUser() user: JwtPayloadUser,
   ) {
-    return this.maintenancesService.addPhotos(id, files);
+    return this.maintenancesService.addPhotos(id, files, user.userId);
   }
 }

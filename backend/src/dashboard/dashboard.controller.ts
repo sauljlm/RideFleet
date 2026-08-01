@@ -1,4 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { JwtPayloadUser } from '../auth/strategies/jwt.strategy';
 import { DashboardService } from './dashboard.service';
 import { ProfitabilityQueryDto } from './dto/profitability-query.dto';
 
@@ -7,25 +9,29 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('summary')
-  getSummary() {
-    return this.dashboardService.getSummary();
+  getSummary(@CurrentUser() user: JwtPayloadUser) {
+    return this.dashboardService.getSummary(user.userId);
   }
 
   @Get('maintenance-alerts')
-  getMaintenanceAlerts() {
-    return this.dashboardService.getMaintenanceAlerts();
+  getMaintenanceAlerts(@CurrentUser() user: JwtPayloadUser) {
+    return this.dashboardService.getMaintenanceAlerts(user.userId);
   }
 
   @Get('late-payments')
-  getLatePayments() {
-    return this.dashboardService.getLatePayments();
+  getLatePayments(@CurrentUser() user: JwtPayloadUser) {
+    return this.dashboardService.getLatePayments(user.userId);
   }
 
   @Get('profitability')
-  getProfitability(@Query() query: ProfitabilityQueryDto) {
+  getProfitability(
+    @Query() query: ProfitabilityQueryDto,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
     return this.dashboardService.getProfitability(
       new Date(query.startDate),
       new Date(query.endDate),
+      user.userId,
     );
   }
 }

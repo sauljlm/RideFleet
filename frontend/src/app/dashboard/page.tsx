@@ -1,12 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
 import { PhotoThumbnail } from '@/components/PhotoThumbnail';
 import { ApiError } from '@/lib/api';
-import { clearToken } from '@/lib/auth';
 import {
   getDashboardSummary,
   getLatePayments,
@@ -41,8 +39,6 @@ function currentMonthRange(): { start: string; end: string } {
 }
 
 function DashboardContent() {
-  const router = useRouter();
-
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
@@ -171,35 +167,10 @@ function DashboardContent() {
       .finally(() => setProfitabilityLoading(false));
   }
 
-  function handleLogout() {
-    clearToken();
-    router.replace('/login');
-  }
-
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
-        <div className="flex gap-3">
-          <Link
-            href="/vehiculos"
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Vehículos
-          </Link>
-          <Link
-            href="/conductores"
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Conductores
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Cerrar sesión
-          </button>
-        </div>
       </div>
 
       {summaryError && <p className="mb-4 text-sm text-red-600">{summaryError}</p>}

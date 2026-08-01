@@ -11,6 +11,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { JwtPayloadUser } from '../auth/strategies/jwt.strategy';
 import {
   imageUploadOptions,
   MAX_FILES_PER_UPLOAD,
@@ -24,34 +26,45 @@ export class DriversController {
   constructor(private readonly driversService: DriversService) {}
 
   @Post()
-  create(@Body() createDriverDto: CreateDriverDto) {
-    return this.driversService.create(createDriverDto);
+  create(
+    @Body() createDriverDto: CreateDriverDto,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.driversService.create(createDriverDto, user.userId);
   }
 
   @Get()
-  findAll() {
-    return this.driversService.findAll();
+  findAll(@CurrentUser() user: JwtPayloadUser) {
+    return this.driversService.findAll(user.userId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.driversService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: JwtPayloadUser) {
+    return this.driversService.findOne(id, user.userId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateDriverDto: UpdateDriverDto) {
-    return this.driversService.update(id, updateDriverDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateDriverDto: UpdateDriverDto,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.driversService.update(id, updateDriverDto, user.userId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.driversService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: JwtPayloadUser) {
+    return this.driversService.remove(id, user.userId);
   }
 
   @Post(':id/photo')
   @UseInterceptors(FileInterceptor('file', imageUploadOptions))
-  setPhoto(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
-    return this.driversService.setPhoto(id, file);
+  setPhoto(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.driversService.setPhoto(id, file, user.userId);
   }
 
   @Post(':id/contract-photos')
@@ -61,7 +74,8 @@ export class DriversController {
   addContractPhotos(
     @Param('id') id: string,
     @UploadedFiles() files: Express.Multer.File[],
+    @CurrentUser() user: JwtPayloadUser,
   ) {
-    return this.driversService.addContractPhotos(id, files);
+    return this.driversService.addContractPhotos(id, files, user.userId);
   }
 }

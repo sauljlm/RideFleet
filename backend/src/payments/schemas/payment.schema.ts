@@ -10,6 +10,14 @@ export enum PaymentMethod {
 
 @Schema({ timestamps: true })
 export class Payment {
+  @Prop({
+    type: SchemaTypes.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  })
+  ownerId: Types.ObjectId;
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Driver', required: true })
   driverId: Types.ObjectId;
 

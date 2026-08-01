@@ -20,31 +20,43 @@ export class MaintenancesService {
     private readonly vehiclesService: VehiclesService,
   ) {}
 
-  async create(dto: CreateMaintenanceDto): Promise<MaintenanceDocument> {
-    await this.vehiclesService.findOne(dto.vehicleId);
+  async create(
+    dto: CreateMaintenanceDto,
+    ownerId: string,
+  ): Promise<MaintenanceDocument> {
+    await this.vehiclesService.findOne(dto.vehicleId, ownerId);
 
-    const maintenance = new this.maintenanceModel(dto);
+    const maintenance = new this.maintenanceModel({ ...dto, ownerId });
     await maintenance.save();
 
     await this.vehiclesService.syncMileageIfHigher(
       dto.vehicleId,
       dto.mileageAtService,
       new Date(dto.date),
+      ownerId,
     );
 
     return maintenance;
   }
 
-  findAll(): Promise<MaintenanceDocument[]> {
-    return this.maintenanceModel.find().sort({ date: -1 }).exec();
+  findAll(ownerId: string): Promise<MaintenanceDocument[]> {
+    return this.maintenanceModel.find({ ownerId }).sort({ date: -1 }).exec();
   }
 
-  findByVehicle(vehicleId: string): Promise<MaintenanceDocument[]> {
-    return this.maintenanceModel.find({ vehicleId }).sort({ date: -1 }).exec();
+  findByVehicle(
+    vehicleId: string,
+    ownerId: string,
+  ): Promise<MaintenanceDocument[]> {
+    return this.maintenanceModel
+      .find({ vehicleId, ownerId })
+      .sort({ date: -1 })
+      .exec();
   }
 
-  async findOne(id: string): Promise<MaintenanceDocument> {
-    const maintenance = await this.maintenanceModel.findById(id).exec();
+  async findOne(id: string, ownerId: string): Promise<MaintenanceDocument> {
+    const maintenance = await this.maintenanceModel
+      .findOne({ _id: id, ownerId })
+      .exec();
     if (!maintenance) {
       throw new NotFoundException('Mantenimiento no encontrado');
     }
@@ -54,9 +66,10 @@ export class MaintenancesService {
   async update(
     id: string,
     dto: UpdateMaintenanceDto,
+    ownerId: string,
   ): Promise<MaintenanceDocument> {
     const maintenance = await this.maintenanceModel
-      .findByIdAndUpdate(id, dto, { new: true })
+      .findOneAndUpdate({ _id: id, ownerId }, dto, { new: true })
       .exec();
     if (!maintenance) {
       throw new NotFoundException('Mantenimiento no encontrado');
@@ -64,8 +77,10 @@ export class MaintenancesService {
     return maintenance;
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.maintenanceModel.findByIdAndDelete(id).exec();
+  async remove(id: string, ownerId: string): Promise<void> {
+    const result = await this.maintenanceModel
+      .findOneAndDelete({ _id: id, ownerId })
+      .exec();
     if (!result) {
       throw new NotFoundException('Mantenimiento no encontrado');
     }
@@ -74,11 +89,12 @@ export class MaintenancesService {
   async addPhotos(
     id: string,
     files: Express.Multer.File[],
+    ownerId: string,
   ): Promise<MaintenanceDocument> {
     if (!files || files.length === 0) {
       throw new BadRequestException('No se recibió ningún archivo');
     }
-    const maintenance = await this.findOne(id);
+    const maintenance = await this.findOne(id, ownerId);
     const results = await Promise.all(
       files.map((file) =>
         this.cloudinaryService.uploadBuffer(

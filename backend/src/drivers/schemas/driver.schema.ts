@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 export type DriverDocument = HydratedDocument<Driver>;
 
@@ -11,6 +11,14 @@ export enum DriverStatus {
 
 @Schema({ timestamps: true })
 export class Driver {
+  @Prop({
+    type: SchemaTypes.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  })
+  ownerId: Types.ObjectId;
+
   @Prop({ required: true, trim: true })
   fullName: string;
 

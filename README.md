@@ -45,13 +45,23 @@ Completa `backend/.env` con tus propios valores (nunca se suben al repo, ese arc
 | `CLOUDINARY_API_SECRET` | Del dashboard de Cloudinary |
 | `PORT` | Puerto del servidor (por defecto `3001`; en Railway se asigna automáticamente) |
 | `FRONTEND_URL` | Origen exacto permitido por CORS, ej. `http://localhost:3000` o el dominio del frontend en producción |
-| `ADMIN_USERNAME` | Solo usado por el script de seed, para crear el usuario administrador |
+| `RESEND_API_KEY` | API key de [Resend](https://resend.com), usada para enviar el correo de recuperación de contraseña |
+| `EMAIL_FROM` | Remitente de los correos. Por defecto `onboarding@resend.dev` (remitente de pruebas de Resend, sin verificar dominio propio); en producción usa un remitente de tu propio dominio verificado en Resend |
+| `ADMIN_USERNAME` | Solo usado por el script de seed, para crear el usuario administrador inicial |
 | `ADMIN_PASSWORD` | Solo usado por el script de seed (mínimo 8 caracteres) |
+| `ADMIN_EMAIL` | Solo usado por el script de migración a multi-usuario, para completar el correo del administrador inicial |
+| `ADMIN_FULLNAME` | Solo usado por el script de migración a multi-usuario, para completar el nombre del administrador inicial |
 
-Crea el usuario administrador (una sola vez, o cada vez que quieras cambiar sus credenciales):
+RideFleet es multi-usuario: cada cuenta tiene su propia flota, conductores y pagos, completamente independientes del resto. Cualquier persona puede crear una cuenta desde `/registro` en el frontend. El siguiente script solo es necesario para tener una primera cuenta administradora ya creada (por ejemplo, para no partir de cero en desarrollo):
 
 ```bash
 ADMIN_USERNAME=admin ADMIN_PASSWORD=tu-contraseña npm run seed:admin
+```
+
+Si vienes de una versión anterior de RideFleet (de un solo usuario) y ya tenías vehículos/conductores/pagos cargados, corre una única vez el script de migración para que esa cuenta administradora se convierta en tu primera cuenta y conserve todos sus datos:
+
+```bash
+ADMIN_USERNAME=admin ADMIN_EMAIL=tu@correo.com ADMIN_FULLNAME="Tu Nombre" npm run migrate:multi-tenant
 ```
 
 Corre el servidor de desarrollo:
