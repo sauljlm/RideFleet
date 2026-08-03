@@ -18,6 +18,7 @@ import {
   type MaintenanceAlert,
   type VehicleProfitability,
 } from '@/types/dashboard';
+import { WEEKDAY_LABELS } from '@/types/driver';
 import type { DriverPaymentStatus } from '@/types/payment';
 
 type DriverOverallStatus = 'al-dia' | 'pendiente' | 'atraso';
@@ -48,6 +49,10 @@ function driverOverallStatus(status: DriverPaymentStatus): DriverOverallStatus {
 
 function firstName(fullName: string): string {
   return fullName.split(' ')[0];
+}
+
+function paymentDayLabel(weekEndIso: string): string {
+  return WEEKDAY_LABELS[new Date(weekEndIso).getDay()];
 }
 
 function formatDate(value: string): string {
@@ -350,6 +355,8 @@ function DashboardContent() {
               <thead className="bg-gray-50">
                 <tr>
                   <Th>Conductor</Th>
+                  <Th>Día de pago</Th>
+                  <Th>Fecha de último pago</Th>
                   <Th>Estado</Th>
                 </tr>
               </thead>
@@ -369,8 +376,19 @@ function DashboardContent() {
                             size={40}
                             rounded="full"
                           />
-                          {firstName(status.fullName)}
+                          <span className="sm:hidden">
+                            {firstName(status.fullName)}
+                          </span>
+                          <span className="hidden sm:inline">
+                            {status.fullName}
+                          </span>
                         </Link>
+                      </Td>
+                      <Td>{paymentDayLabel(status.currentWeekEnd)}</Td>
+                      <Td>
+                        {status.lastPayment
+                          ? formatDate(status.lastPayment.paymentDate)
+                          : '—'}
                       </Td>
                       <Td>
                         <span
