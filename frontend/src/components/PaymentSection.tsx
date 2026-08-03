@@ -14,7 +14,7 @@ import { PAYMENT_METHOD_LABELS } from '@/types/payment';
 const METHOD_OPTIONS: PaymentMethod[] = ['efectivo', 'transferencia'];
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('es-CR');
+  return new Date(value).toLocaleDateString('es-CR', { timeZone: 'UTC' });
 }
 
 function formatCRC(value: number): string {

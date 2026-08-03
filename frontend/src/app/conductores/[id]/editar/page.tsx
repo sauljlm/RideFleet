@@ -25,7 +25,7 @@ import type { Driver } from '@/types/driver';
 import type { Vehicle } from '@/types/vehicle';
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('es-CR');
+  return new Date(value).toLocaleDateString('es-CR', { timeZone: 'UTC' });
 }
 
 function EditDriverContent() {

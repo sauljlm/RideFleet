@@ -52,11 +52,15 @@ function firstName(fullName: string): string {
 }
 
 function paymentDayLabel(weekEndIso: string): string {
-  return WEEKDAY_LABELS[new Date(weekEndIso).getDay()];
+  // weekEnd es el último día de la semana de pago; el día de inicio (el que
+  // configura el conductor y que mostramos como "día de pago") es el
+  // siguiente día de la semana.
+  const weekEndDay = new Date(weekEndIso).getUTCDay();
+  return WEEKDAY_LABELS[(weekEndDay + 1) % 7];
 }
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('es-CR');
+  return new Date(value).toLocaleDateString('es-CR', { timeZone: 'UTC' });
 }
 
 function formatCRC(value: number): string {

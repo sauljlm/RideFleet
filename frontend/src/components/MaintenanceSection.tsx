@@ -25,7 +25,7 @@ const TYPE_OPTIONS: MaintenanceType[] = [
 ];
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('es-CR');
+  return new Date(value).toLocaleDateString('es-CR', { timeZone: 'UTC' });
 }
 
 function formatCRC(value: number): string {

@@ -29,11 +29,20 @@ export function getWeekRange(date: Date, weekStartDay: number): WeekRange {
 }
 
 /**
- * "Hoy" normalizado a medianoche UTC del día calendario local del
- * servidor, para poder compararse directamente contra `weekStart`/
- * `weekEnd` u otras fechas "date-only" (ver nota en `getWeekRange`).
+ * "Hoy" normalizado a medianoche UTC del día calendario en Costa Rica
+ * (no del servidor: en Railway el contenedor corre en UTC, así que usar
+ * el día calendario del servidor adelantaría "hoy" hasta 6 horas cada
+ * tarde/noche, rompiendo el cálculo de la semana de pago). Se puede
+ * comparar directamente contra `weekStart`/`weekEnd` u otras fechas
+ * "date-only" (ver nota en `getWeekRange`).
  */
 export function getTodayUTC(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Costa_Rica',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  const [year, month, day] = parts.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
 }

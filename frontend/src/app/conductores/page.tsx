@@ -12,11 +12,11 @@ import { WEEKDAY_LABELS, type Driver } from '@/types/driver';
 import type { DriverPaymentStatus } from '@/types/payment';
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('es-CR');
+  return new Date(value).toLocaleDateString('es-CR', { timeZone: 'UTC' });
 }
 
 function paymentDayLabel(weekStartDay: number): string {
-  return WEEKDAY_LABELS[(weekStartDay + 6) % 7];
+  return WEEKDAY_LABELS[weekStartDay];
 }
 
 function DriversPageContent() {
