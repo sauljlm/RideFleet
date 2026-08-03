@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 
-const DEFAULT_SANDBOX_SENDER = 'onboarding@resend.dev';
+const DEFAULT_SANDBOX_SENDER = 'RideFleet <onboarding@resend.dev>';
 
 @Injectable()
 export class EmailService {

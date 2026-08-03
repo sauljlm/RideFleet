@@ -17,8 +17,14 @@ export class ApiError extends Error {
   }
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (res.status === 401) {
+// `hadToken` distingue dos casos que ambos llegan como HTTP 401:
+// - Había un token y el servidor lo rechazó: la sesión expiró o dejó de
+//   ser válida, así que forzamos logout y redirigimos a /login.
+// - No había token (ej. intento de login con credenciales incorrectas):
+//   no es una sesión expirada, es un error propio del endpoint. Se deja
+//   que el llamador (el formulario de login, etc.) muestre el mensaje.
+async function handleResponse<T>(res: Response, hadToken: boolean): Promise<T> {
+  if (res.status === 401 && hadToken) {
     clearToken();
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
@@ -42,40 +48,43 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function authHeaders(): HeadersInit {
-  const token = getToken();
+function authHeaders(token: string | null): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() });
-  return handleResponse<T>(res);
+  const token = getToken();
+  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders(token) });
+  return handleResponse<T>(res, Boolean(token));
 }
 
 export async function apiPost<T>(path: string, data: unknown): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify(data),
   });
-  return handleResponse<T>(res);
+  return handleResponse<T>(res, Boolean(token));
 }
 
 export async function apiPatch<T>(path: string, data: unknown): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify(data),
   });
-  return handleResponse<T>(res);
+  return handleResponse<T>(res, Boolean(token));
 }
 
 export async function apiDelete<T>(path: string): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
     method: 'DELETE',
-    headers: authHeaders(),
+    headers: authHeaders(token),
   });
-  return handleResponse<T>(res);
+  return handleResponse<T>(res, Boolean(token));
 }
 
 export async function apiUpload<T>(
@@ -86,12 +95,13 @@ export async function apiUpload<T>(
   const formData = new FormData();
   Array.from(files).forEach((file) => formData.append(fieldName, file));
 
+  const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: authHeaders(token),
     body: formData,
   });
-  return handleResponse<T>(res);
+  return handleResponse<T>(res, Boolean(token));
 }
 
 export async function apiUploadForm<T>(
@@ -106,10 +116,11 @@ export async function apiUploadForm<T>(
     formData.append(fileFieldName, file);
   }
 
+  const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: authHeaders(token),
     body: formData,
   });
-  return handleResponse<T>(res);
+  return handleResponse<T>(res, Boolean(token));
 }
