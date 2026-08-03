@@ -10,6 +10,7 @@ import {
   getLatePayments,
   getMaintenanceAlerts,
   getProfitability,
+  getUpcomingPayments,
 } from '@/lib/dashboard';
 import {
   MAINTENANCE_ALERT_LABELS,
@@ -25,6 +26,17 @@ function formatDate(value: string): string {
 
 function formatCRC(value: number): string {
   return `₡${value.toLocaleString('es-CR')}`;
+}
+
+function formatDueLabel(value: string): string {
+  const due = new Date(value);
+  const now = new Date();
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((dueDay.getTime() - today.getTime()) / 86400000);
+  if (diffDays <= 0) return 'Vence hoy';
+  if (diffDays === 1) return 'Vence mañana';
+  return `Vence el ${formatDate(value)}`;
 }
 
 function toDateInputValue(date: Date): string {
@@ -49,6 +61,12 @@ function DashboardContent() {
   const [latePayments, setLatePayments] = useState<DriverPaymentStatus[]>([]);
   const [latePaymentsLoading, setLatePaymentsLoading] = useState(true);
   const [latePaymentsError, setLatePaymentsError] = useState<string | null>(null);
+
+  const [upcomingPayments, setUpcomingPayments] = useState<DriverPaymentStatus[]>([]);
+  const [upcomingPaymentsLoading, setUpcomingPaymentsLoading] = useState(true);
+  const [upcomingPaymentsError, setUpcomingPaymentsError] = useState<
+    string | null
+  >(null);
 
   const defaultRange = currentMonthRange();
   const [startDate, setStartDate] = useState(defaultRange.start);
@@ -127,6 +145,29 @@ function DashboardContent() {
 
   useEffect(() => {
     let ignore = false;
+    getUpcomingPayments()
+      .then((data) => {
+        if (!ignore) setUpcomingPayments(data);
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setUpcomingPaymentsError(
+            err instanceof ApiError
+              ? err.message
+              : 'No se pudieron cargar los pagos próximos',
+          );
+        }
+      })
+      .finally(() => {
+        if (!ignore) setUpcomingPaymentsLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
     const initialRange = currentMonthRange();
 
     getProfitability(initialRange.start, initialRange.end)
@@ -175,7 +216,7 @@ function DashboardContent() {
 
       {summaryError && <p className="mb-4 text-sm text-red-600">{summaryError}</p>}
 
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <SummaryCard label="Vehículos activos" value={summary?.activeVehicles} />
         <SummaryCard label="Conductores activos" value={summary?.activeDrivers} />
         <SummaryCard
@@ -222,7 +263,7 @@ function DashboardContent() {
                         <PhotoThumbnail
                           src={alert.photo}
                           alt={`${alert.brand} ${alert.model}`}
-                          size={32}
+                          size={40}
                         />
                         {alert.brand} {alert.model} ({alert.plate})
                       </Link>
@@ -244,6 +285,64 @@ function DashboardContent() {
                         {MAINTENANCE_ALERT_LABELS[alert.status]}
                       </span>
                     </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">
+          Pagos próximos (menos de 48 horas)
+        </h2>
+        {upcomingPaymentsLoading && (
+          <p className="text-sm text-gray-500">Cargando…</p>
+        )}
+        {upcomingPaymentsError && (
+          <p className="text-sm text-red-600">{upcomingPaymentsError}</p>
+        )}
+        {!upcomingPaymentsLoading &&
+          !upcomingPaymentsError &&
+          upcomingPayments.length === 0 && (
+            <p className="text-sm text-gray-500">
+              Ningún conductor tiene pagos por vencer en las próximas 48 horas.
+            </p>
+          )}
+        {upcomingPayments.length > 0 && (
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <Th>Conductor</Th>
+                  <Th>Vencimiento</Th>
+                  <Th>Monto a pagar</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {upcomingPayments.map((status) => (
+                  <tr key={status.driverId}>
+                    <Td>
+                      <Link
+                        href={`/conductores/${status.driverId}/editar`}
+                        className="flex items-center gap-3 font-medium text-gray-900 hover:underline"
+                      >
+                        <PhotoThumbnail
+                          src={status.photo}
+                          alt={status.fullName}
+                          size={40}
+                          rounded="full"
+                        />
+                        {status.fullName}
+                      </Link>
+                    </Td>
+                    <Td>
+                      <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800">
+                        {formatDueLabel(status.currentWeekEnd)}
+                      </span>
+                    </Td>
+                    <Td>{formatCRC(status.currentAmountDue)}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -287,7 +386,7 @@ function DashboardContent() {
                         <PhotoThumbnail
                           src={status.photo}
                           alt={status.fullName}
-                          size={32}
+                          size={40}
                           rounded="full"
                         />
                         {status.fullName}
@@ -385,7 +484,7 @@ function DashboardContent() {
                         <PhotoThumbnail
                           src={row.photo}
                           alt={`${row.brand} ${row.model}`}
-                          size={32}
+                          size={40}
                         />
                         {row.brand} {row.model} ({row.plate})
                       </Link>
@@ -422,9 +521,9 @@ function SummaryCard({
   value: string | number | undefined;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-gray-900">
+    <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
+      <p className="text-xs text-gray-500 sm:text-sm">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-gray-900 sm:text-2xl">
         {value === undefined ? '—' : value}
       </p>
     </div>

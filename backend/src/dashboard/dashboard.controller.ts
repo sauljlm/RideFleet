@@ -23,6 +23,11 @@ export class DashboardController {
     return this.dashboardService.getLatePayments(user.userId);
   }
 
+  @Get('upcoming-payments')
+  getUpcomingPayments(@CurrentUser() user: JwtPayloadUser) {
+    return this.dashboardService.getUpcomingPayments(user.userId);
+  }
+
   @Get('profitability')
   getProfitability(
     @Query() query: ProfitabilityQueryDto,

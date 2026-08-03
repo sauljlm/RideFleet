@@ -21,12 +21,14 @@ export interface DriverPaymentStatus {
   lastPayment: {
     weekStart: Date;
     weekEnd: Date;
+    paymentDate: Date;
     remainingBalance: number;
   } | null;
   currentAmountDue: number;
   pendingBalance: number;
   hasPaidCurrentWeek: boolean;
   inGracePeriod: boolean;
+  currentWeekEnd: Date;
 }
 
 @Injectable()
@@ -206,10 +208,8 @@ export class PaymentsService {
 
       const pendingBalance = lastPayment?.remainingBalance ?? 0;
 
-      const { weekStart: todayWeekStart } = getWeekRange(
-        getTodayUTC(),
-        driver.weekStartDay,
-      );
+      const { weekStart: todayWeekStart, weekEnd: todayWeekEnd } =
+        getWeekRange(getTodayUTC(), driver.weekStartDay);
 
       // Si el depósito cubre la primera semana de contrato, esa semana (la
       // que contiene contractStartDate) no cuenta como atrasada ni se
@@ -246,6 +246,7 @@ export class PaymentsService {
           ? {
               weekStart: lastPayment.weekStart,
               weekEnd: lastPayment.weekEnd,
+              paymentDate: lastPayment.paymentDate,
               remainingBalance: lastPayment.remainingBalance,
             }
           : null,
@@ -253,6 +254,7 @@ export class PaymentsService {
         pendingBalance,
         hasPaidCurrentWeek,
         inGracePeriod,
+        currentWeekEnd: todayWeekEnd,
       });
     }
 

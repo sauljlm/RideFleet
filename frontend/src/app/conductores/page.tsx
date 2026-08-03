@@ -7,15 +7,16 @@ import { PhotoThumbnail } from '@/components/PhotoThumbnail';
 import { ApiError } from '@/lib/api';
 import { deleteDriver, getDrivers } from '@/lib/drivers';
 import { getPaymentsStatus } from '@/lib/payments';
-import { DRIVER_STATUS_LABELS, type Driver } from '@/types/driver';
+import { getVehicles } from '@/lib/vehicles';
+import { WEEKDAY_LABELS, type Driver } from '@/types/driver';
 import type { DriverPaymentStatus } from '@/types/payment';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('es-CR');
 }
 
-function formatCRC(value: number): string {
-  return `₡${value.toLocaleString('es-CR')}`;
+function paymentDayLabel(weekStartDay: number): string {
+  return WEEKDAY_LABELS[(weekStartDay + 6) % 7];
 }
 
 function DriversPageContent() {
@@ -23,21 +24,36 @@ function DriversPageContent() {
   const [paymentStatus, setPaymentStatus] = useState<
     Record<string, DriverPaymentStatus>
   >({});
+  const [plateByDriver, setPlateByDriver] = useState<Record<string, string>>(
+    {},
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
 
-    Promise.all([getDrivers(), getPaymentsStatus()])
-      .then(([driversData, statusData]) => {
+    Promise.all([getDrivers(), getPaymentsStatus(), getVehicles()])
+      .then(([driversData, statusData, vehiclesData]) => {
         if (ignore) return;
         setDrivers(driversData);
+
         const map: Record<string, DriverPaymentStatus> = {};
         statusData.forEach((s) => {
           map[s.driverId] = s;
         });
         setPaymentStatus(map);
+
+        const plates: Record<string, string> = {};
+        vehiclesData.forEach((vehicle) => {
+          if (!vehicle.currentDriverId) return;
+          const driverId =
+            typeof vehicle.currentDriverId === 'string'
+              ? vehicle.currentDriverId
+              : vehicle.currentDriverId._id;
+          plates[driverId] = vehicle.plate;
+        });
+        setPlateByDriver(plates);
       })
       .catch((err) => {
         if (!ignore) {
@@ -97,71 +113,47 @@ function DriversPageContent() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <Th>Foto</Th>
-                <Th>Nombre</Th>
-                <Th>Cédula</Th>
-                <Th>Teléfono</Th>
-                <Th>Monto semanal</Th>
-                <Th>Estado</Th>
-                <Th>Última semana pagada</Th>
-                <Th>Adeudado actual</Th>
-                <Th>Saldo pendiente</Th>
+                <Th>Conductor</Th>
+                <Th>Día de pago</Th>
+                <Th>Fecha de último pago</Th>
+                <Th>Placa</Th>
                 <Th>Acciones</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {drivers.map((driver) => {
                 const status = paymentStatus[driver._id];
+                const plate = plateByDriver[driver._id];
                 return (
                   <tr key={driver._id}>
                     <Td>
-                      <PhotoThumbnail
-                        src={driver.photo}
-                        alt={driver.fullName}
-                        rounded="full"
-                      />
+                      <Link
+                        href={`/conductores/${driver._id}`}
+                        className="flex items-center gap-3 font-medium text-gray-900 hover:underline"
+                      >
+                        <PhotoThumbnail
+                          src={driver.photo}
+                          alt={driver.fullName}
+                          rounded="full"
+                        />
+                        {driver.fullName}
+                      </Link>
                     </Td>
-                    <Td>{driver.fullName}</Td>
-                    <Td>{driver.idNumber}</Td>
-                    <Td>{driver.phone}</Td>
-                    <Td>{formatCRC(driver.weeklyAmount)}</Td>
-                    <Td>
-                      <StatusBadge status={driver.status} />
-                    </Td>
+                    <Td>{paymentDayLabel(driver.weekStartDay)}</Td>
                     <Td>
                       {status?.lastPayment
-                        ? formatDate(status.lastPayment.weekEnd)
+                        ? formatDate(status.lastPayment.paymentDate)
                         : '—'}
                     </Td>
-                    <Td>
-                      {status ? (
-                        status.inGracePeriod ? (
-                          <span className="text-gray-500">
-                            {formatCRC(0)}{' '}
-                            <span className="text-xs">(período de gracia)</span>
-                          </span>
-                        ) : (
-                          formatCRC(status.currentAmountDue)
-                        )
-                      ) : (
-                        '—'
-                      )}
-                    </Td>
-                    <Td>
-                      {status ? (
-                        status.pendingBalance > 0 ? (
-                          <span className="font-medium text-red-600">
-                            {formatCRC(status.pendingBalance)}
-                          </span>
-                        ) : (
-                          formatCRC(0)
-                        )
-                      ) : (
-                        '—'
-                      )}
-                    </Td>
+                    <Td>{plate ?? '—'}</Td>
                     <Td>
                       <div className="flex gap-3">
+                        <Link
+                          href={`/conductores/${driver._id}`}
+                          className="text-sm font-medium text-gray-700 hover:underline"
+                        >
+                          Ver
+                        </Link>
                         <Link
                           href={`/conductores/${driver._id}/editar`}
                           className="text-sm font-medium text-gray-700 hover:underline"
@@ -197,19 +189,6 @@ function Th({ children }: { children: React.ReactNode }) {
 
 function Td({ children }: { children: React.ReactNode }) {
   return <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">{children}</td>;
-}
-
-function StatusBadge({ status }: { status: Driver['status'] }) {
-  const colors: Record<Driver['status'], string> = {
-    activo: 'bg-green-100 text-green-800',
-    inactivo: 'bg-gray-100 text-gray-800',
-    suspendido: 'bg-red-100 text-red-800',
-  };
-  return (
-    <span className={`rounded-full px-2 py-1 text-xs font-medium ${colors[status]}`}>
-      {DRIVER_STATUS_LABELS[status]}
-    </span>
-  );
 }
 
 export default function DriversPage() {

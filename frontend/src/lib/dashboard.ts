@@ -18,6 +18,10 @@ export function getLatePayments(): Promise<DriverPaymentStatus[]> {
   return apiGet<DriverPaymentStatus[]>('/dashboard/late-payments');
 }
 
+export function getUpcomingPayments(): Promise<DriverPaymentStatus[]> {
+  return apiGet<DriverPaymentStatus[]>('/dashboard/upcoming-payments');
+}
+
 export function getProfitability(
   startDate: string,
   endDate: string,

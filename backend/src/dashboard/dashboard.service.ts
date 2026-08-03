@@ -19,6 +19,7 @@ import { VehiclesService } from '../vehicles/vehicles.service';
 
 const MAINTENANCE_DUE_SOON_KM = 4000;
 const MAINTENANCE_OVERDUE_KM = 5000;
+const UPCOMING_PAYMENT_WINDOW_HOURS = 48;
 
 export interface DashboardSummary {
   activeVehicles: number;
@@ -191,6 +192,24 @@ export class DashboardService {
     return statuses.filter(
       (s) => !s.hasPaidCurrentWeek || s.pendingBalance > 0,
     );
+  }
+
+  async getUpcomingPayments(ownerId: string): Promise<DriverPaymentStatus[]> {
+    const statuses = await this.paymentsService.getCurrentStatus(ownerId);
+    const now = Date.now();
+
+    return statuses
+      .filter((s) => {
+        if (s.inGracePeriod || s.hasPaidCurrentWeek) {
+          return false;
+        }
+        const hoursUntilDue =
+          (s.currentWeekEnd.getTime() - now) / (1000 * 60 * 60);
+        return hoursUntilDue <= UPCOMING_PAYMENT_WINDOW_HOURS;
+      })
+      .sort(
+        (a, b) => a.currentWeekEnd.getTime() - b.currentWeekEnd.getTime(),
+      );
   }
 
   async getProfitability(

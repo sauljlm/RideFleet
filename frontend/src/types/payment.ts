@@ -37,12 +37,14 @@ export interface DriverPaymentStatus {
   lastPayment: {
     weekStart: string;
     weekEnd: string;
+    paymentDate: string;
     remainingBalance: number;
   } | null;
   currentAmountDue: number;
   pendingBalance: number;
   hasPaidCurrentWeek: boolean;
   inGracePeriod: boolean;
+  currentWeekEnd: string;
 }
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {

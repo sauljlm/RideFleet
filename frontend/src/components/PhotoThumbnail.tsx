@@ -10,7 +10,7 @@ interface PhotoThumbnailProps {
 export function PhotoThumbnail({
   src,
   alt,
-  size = 40,
+  size = 56,
   rounded = 'md',
 }: PhotoThumbnailProps) {
   const roundedClass = rounded === 'full' ? 'rounded-full' : 'rounded-md';
