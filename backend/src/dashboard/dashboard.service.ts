@@ -190,14 +190,19 @@ export class DashboardService {
   async getUpcomingPayments(ownerId: string): Promise<DriverPaymentStatus[]> {
     const statuses = await this.paymentsService.getCurrentStatus(ownerId);
     const now = Date.now();
+    // El conductor paga el día que empieza la semana siguiente
+    // (weekStartDay), no el último día de la semana que se está usando el
+    // carro: currentWeekEnd es ese último día, así que el vencimiento real
+    // es un día después.
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
     return statuses
       .filter((s) => {
         if (s.inGracePeriod || s.hasPaidCurrentWeek) {
           return false;
         }
-        const hoursUntilDue =
-          (s.currentWeekEnd.getTime() - now) / (1000 * 60 * 60);
+        const dueAt = s.currentWeekEnd.getTime() + ONE_DAY_MS;
+        const hoursUntilDue = (dueAt - now) / (1000 * 60 * 60);
         return hoursUntilDue <= UPCOMING_PAYMENT_WINDOW_HOURS;
       })
       .sort(

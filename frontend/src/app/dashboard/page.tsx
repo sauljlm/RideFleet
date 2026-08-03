@@ -41,10 +41,26 @@ const DRIVER_STATUS_COLORS: Record<DriverOverallStatus, string> = {
   atraso: 'bg-red-100 text-red-800',
 };
 
+const PENDING_STATUS_WINDOW_HOURS = 48;
+
+// El conductor paga el día que empieza la semana siguiente (weekStartDay),
+// no el último día de la semana que se está usando el carro: currentWeekEnd
+// es ese último día, así que el vencimiento real es un día después.
+function effectiveDueDate(currentWeekEndIso: string): Date {
+  const due = new Date(currentWeekEndIso);
+  due.setUTCDate(due.getUTCDate() + 1);
+  return due;
+}
+
 function driverOverallStatus(status: DriverPaymentStatus): DriverOverallStatus {
   if (status.inGracePeriod || status.hasPaidCurrentWeek) return 'al-dia';
   if (status.pendingBalance > 0) return 'atraso';
-  return 'pendiente';
+  // Todavía no pagó esta semana, pero mientras falte más de 48 horas para
+  // el vencimiento no está atrasado ni es urgente: sigue "al día".
+  const hoursUntilDue =
+    (effectiveDueDate(status.currentWeekEnd).getTime() - Date.now()) /
+    (1000 * 60 * 60);
+  return hoursUntilDue <= PENDING_STATUS_WINDOW_HOURS ? 'pendiente' : 'al-dia';
 }
 
 function firstName(fullName: string): string {
@@ -319,12 +335,19 @@ function DashboardContent() {
                           size={40}
                           rounded="full"
                         />
-                        {status.fullName}
+                        <span className="sm:hidden">
+                          {firstName(status.fullName)}
+                        </span>
+                        <span className="hidden sm:inline">
+                          {status.fullName}
+                        </span>
                       </Link>
                     </Td>
                     <Td>
                       <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800">
-                        {formatDueLabel(status.currentWeekEnd)}
+                        {formatDueLabel(
+                          effectiveDueDate(status.currentWeekEnd).toISOString(),
+                        )}
                       </span>
                     </Td>
                     <Td>{formatCRC(status.currentAmountDue)}</Td>
