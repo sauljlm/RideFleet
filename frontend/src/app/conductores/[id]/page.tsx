@@ -27,7 +27,7 @@ function formatCRC(value: number): string {
 }
 
 function paymentDayLabel(weekStartDay: number): string {
-  return WEEKDAY_LABELS[(weekStartDay + 6) % 7];
+  return WEEKDAY_LABELS[weekStartDay];
 }
 
 function StatusBadge({ status }: { status: Driver['status'] }) {

@@ -13,7 +13,7 @@ import {
   PaymentsService,
 } from '../payments/payments.service';
 import { Payment, PaymentDocument } from '../payments/schemas/payment.schema';
-import { getTodayUTC } from '../payments/week-range.util';
+import { getTodayUTC, getWeekRange } from '../payments/week-range.util';
 import { VehicleStatus } from '../vehicles/schemas/vehicle.schema';
 import { VehiclesService } from '../vehicles/vehicles.service';
 
@@ -81,23 +81,40 @@ export class DashboardService {
 
     const today = getTodayUTC();
 
+    // Semana calendario lunes-domingo (weekStartDay 1), independiente del
+    // día de pago de cada conductor: cada conductor tiene su propia ventana
+    // de pago (weekStart/weekEnd en Payment), así que sumar por esa ventana
+    // mezclaría pagos de "semanas de pago" distintas bajo una sola etiqueta
+    // de "esta semana". En cambio filtramos por paymentDate, igual que
+    // monthRevenue, para que ambos reflejen lo efectivamente cobrado dentro
+    // del período calendario mostrado.
+    const { weekStart, weekEnd } = getWeekRange(today, 1);
+
     const weekRevenueResult = await this.paymentModel.aggregate<{
       total: number;
     }>([
       {
         $match: {
           ownerId: ownerObjectId,
-          weekStart: { $lte: today },
-          weekEnd: { $gte: today },
+          paymentDate: { $gte: weekStart, $lte: weekEnd },
         },
       },
       { $group: { _id: null, total: { $sum: '$amountPaid' } } },
     ]);
 
-    const now = new Date();
-    const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+    const monthStart = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1),
+    );
     const monthEnd = new Date(
-      Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
+      Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      ),
     );
     const monthRevenueResult = await this.paymentModel.aggregate<{
       total: number;
@@ -205,9 +222,7 @@ export class DashboardService {
         const hoursUntilDue = (dueAt - now) / (1000 * 60 * 60);
         return hoursUntilDue <= UPCOMING_PAYMENT_WINDOW_HOURS;
       })
-      .sort(
-        (a, b) => a.currentWeekEnd.getTime() - b.currentWeekEnd.getTime(),
-      );
+      .sort((a, b) => a.currentWeekEnd.getTime() - b.currentWeekEnd.getTime());
   }
 
   async getProfitability(

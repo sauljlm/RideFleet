@@ -95,7 +95,10 @@ function VehiclesPageContent() {
                     />
                   </Td>
                   <Td>
-                    {vehicle.brand} {vehicle.model}
+                    <span className="sm:hidden">{vehicle.model}</span>
+                    <span className="hidden sm:inline">
+                      {vehicle.brand} {vehicle.model}
+                    </span>
                   </Td>
                   <Td>{vehicle.plate}</Td>
                   <Td>{vehicle.year}</Td>

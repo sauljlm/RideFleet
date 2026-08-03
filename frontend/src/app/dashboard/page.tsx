@@ -105,6 +105,29 @@ function currentMonthRange(): { start: string; end: string } {
   return { start: toDateInputValue(start), end: toDateInputValue(end) };
 }
 
+const PROFITABILITY_RANGE_STORAGE_KEY = 'ridefleet:profitability-range';
+
+function loadStoredProfitabilityRange(): { start: string; end: string } {
+  if (typeof window === 'undefined') return currentMonthRange();
+  try {
+    const raw = window.localStorage.getItem(PROFITABILITY_RANGE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (typeof parsed?.start === 'string' && typeof parsed?.end === 'string') {
+      return { start: parsed.start, end: parsed.end };
+    }
+  } catch {
+    // localStorage corrupto o inaccesible: usar el rango por defecto
+  }
+  return currentMonthRange();
+}
+
+function storeProfitabilityRange(start: string, end: string): void {
+  window.localStorage.setItem(
+    PROFITABILITY_RANGE_STORAGE_KEY,
+    JSON.stringify({ start, end }),
+  );
+}
+
 function DashboardContent() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -127,9 +150,12 @@ function DashboardContent() {
     string | null
   >(null);
 
-  const defaultRange = currentMonthRange();
-  const [startDate, setStartDate] = useState(defaultRange.start);
-  const [endDate, setEndDate] = useState(defaultRange.end);
+  const [startDate, setStartDate] = useState(
+    () => loadStoredProfitabilityRange().start,
+  );
+  const [endDate, setEndDate] = useState(
+    () => loadStoredProfitabilityRange().end,
+  );
   const [profitability, setProfitability] = useState<VehicleProfitability[]>([]);
   const [profitabilityLoading, setProfitabilityLoading] = useState(true);
   const [profitabilityError, setProfitabilityError] = useState<string | null>(
@@ -227,9 +253,8 @@ function DashboardContent() {
 
   useEffect(() => {
     let ignore = false;
-    const initialRange = currentMonthRange();
 
-    getProfitability(initialRange.start, initialRange.end)
+    getProfitability(startDate, endDate)
       .then((data) => {
         if (!ignore) setProfitability(data);
       })
@@ -255,6 +280,7 @@ function DashboardContent() {
     event.preventDefault();
     setProfitabilityLoading(true);
     setProfitabilityError(null);
+    storeProfitabilityRange(startDate, endDate);
     getProfitability(startDate, endDate)
       .then(setProfitability)
       .catch((err) => {
@@ -544,9 +570,9 @@ function DashboardContent() {
               <thead className="bg-gray-50">
                 <tr>
                   <Th>Vehículo</Th>
+                  <Th>Rentabilidad</Th>
                   <Th>Ingresos</Th>
                   <Th>Costos de mantenimiento</Th>
-                  <Th>Rentabilidad</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
@@ -565,8 +591,6 @@ function DashboardContent() {
                         {row.brand} {row.model} ({row.plate})
                       </Link>
                     </Td>
-                    <Td>{formatCRC(row.totalRevenue)}</Td>
-                    <Td>{formatCRC(row.totalMaintenanceCost)}</Td>
                     <Td>
                       <span
                         className={
@@ -578,6 +602,8 @@ function DashboardContent() {
                         {formatCRC(row.profit)}
                       </span>
                     </Td>
+                    <Td>{formatCRC(row.totalRevenue)}</Td>
+                    <Td>{formatCRC(row.totalMaintenanceCost)}</Td>
                   </tr>
                 ))}
               </tbody>
