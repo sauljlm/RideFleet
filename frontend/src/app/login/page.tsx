@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { ApiError, apiPost } from '@/lib/api';
-import { saveToken } from '@/lib/auth';
+import { getToken, saveToken } from '@/lib/auth';
 
 interface LoginResponse {
   accessToken: string;
@@ -18,6 +18,12 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (getToken()) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();

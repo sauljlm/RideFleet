@@ -18,11 +18,6 @@ export class DashboardController {
     return this.dashboardService.getMaintenanceAlerts(user.userId);
   }
 
-  @Get('late-payments')
-  getLatePayments(@CurrentUser() user: JwtPayloadUser) {
-    return this.dashboardService.getLatePayments(user.userId);
-  }
-
   @Get('upcoming-payments')
   getUpcomingPayments(@CurrentUser() user: JwtPayloadUser) {
     return this.dashboardService.getUpcomingPayments(user.userId);

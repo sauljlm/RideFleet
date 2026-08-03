@@ -14,10 +14,6 @@ export function getMaintenanceAlerts(): Promise<MaintenanceAlert[]> {
   return apiGet<MaintenanceAlert[]>('/dashboard/maintenance-alerts');
 }
 
-export function getLatePayments(): Promise<DriverPaymentStatus[]> {
-  return apiGet<DriverPaymentStatus[]>('/dashboard/late-payments');
-}
-
 export function getUpcomingPayments(): Promise<DriverPaymentStatus[]> {
   return apiGet<DriverPaymentStatus[]>('/dashboard/upcoming-payments');
 }

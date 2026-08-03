@@ -187,13 +187,6 @@ export class DashboardService {
     );
   }
 
-  async getLatePayments(ownerId: string): Promise<DriverPaymentStatus[]> {
-    const statuses = await this.paymentsService.getCurrentStatus(ownerId);
-    return statuses.filter(
-      (s) => !s.hasPaidCurrentWeek || s.pendingBalance > 0,
-    );
-  }
-
   async getUpcomingPayments(ownerId: string): Promise<DriverPaymentStatus[]> {
     const statuses = await this.paymentsService.getCurrentStatus(ownerId);
     const now = Date.now();

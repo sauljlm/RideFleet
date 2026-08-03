@@ -7,11 +7,11 @@ import { PhotoThumbnail } from '@/components/PhotoThumbnail';
 import { ApiError } from '@/lib/api';
 import {
   getDashboardSummary,
-  getLatePayments,
   getMaintenanceAlerts,
   getProfitability,
   getUpcomingPayments,
 } from '@/lib/dashboard';
+import { getPaymentsStatus } from '@/lib/payments';
 import {
   MAINTENANCE_ALERT_LABELS,
   type DashboardSummary,
@@ -19,6 +19,36 @@ import {
   type VehicleProfitability,
 } from '@/types/dashboard';
 import type { DriverPaymentStatus } from '@/types/payment';
+
+type DriverOverallStatus = 'al-dia' | 'pendiente' | 'atraso';
+
+const DRIVER_STATUS_ORDER: Record<DriverOverallStatus, number> = {
+  atraso: 0,
+  pendiente: 1,
+  'al-dia': 2,
+};
+
+const DRIVER_STATUS_LABELS: Record<DriverOverallStatus, string> = {
+  'al-dia': 'Al día',
+  pendiente: 'Pendiente',
+  atraso: 'Atraso',
+};
+
+const DRIVER_STATUS_COLORS: Record<DriverOverallStatus, string> = {
+  'al-dia': 'bg-green-100 text-green-800',
+  pendiente: 'bg-yellow-100 text-yellow-800',
+  atraso: 'bg-red-100 text-red-800',
+};
+
+function driverOverallStatus(status: DriverPaymentStatus): DriverOverallStatus {
+  if (status.inGracePeriod || status.hasPaidCurrentWeek) return 'al-dia';
+  if (status.pendingBalance > 0) return 'atraso';
+  return 'pendiente';
+}
+
+function firstName(fullName: string): string {
+  return fullName.split(' ')[0];
+}
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('es-CR');
@@ -58,9 +88,13 @@ function DashboardContent() {
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsError, setAlertsError] = useState<string | null>(null);
 
-  const [latePayments, setLatePayments] = useState<DriverPaymentStatus[]>([]);
-  const [latePaymentsLoading, setLatePaymentsLoading] = useState(true);
-  const [latePaymentsError, setLatePaymentsError] = useState<string | null>(null);
+  const [driverStatuses, setDriverStatuses] = useState<DriverPaymentStatus[]>(
+    [],
+  );
+  const [driverStatusesLoading, setDriverStatusesLoading] = useState(true);
+  const [driverStatusesError, setDriverStatusesError] = useState<
+    string | null
+  >(null);
 
   const [upcomingPayments, setUpcomingPayments] = useState<DriverPaymentStatus[]>([]);
   const [upcomingPaymentsLoading, setUpcomingPaymentsLoading] = useState(true);
@@ -122,21 +156,21 @@ function DashboardContent() {
 
   useEffect(() => {
     let ignore = false;
-    getLatePayments()
+    getPaymentsStatus()
       .then((data) => {
-        if (!ignore) setLatePayments(data);
+        if (!ignore) setDriverStatuses(data);
       })
       .catch((err) => {
         if (!ignore) {
-          setLatePaymentsError(
+          setDriverStatusesError(
             err instanceof ApiError
               ? err.message
-              : 'No se pudieron cargar los pagos atrasados',
+              : 'No se pudo cargar la lista de conductores',
           );
         }
       })
       .finally(() => {
-        if (!ignore) setLatePaymentsLoading(false);
+        if (!ignore) setDriverStatusesLoading(false);
       });
     return () => {
       ignore = true;
@@ -208,6 +242,12 @@ function DashboardContent() {
       .finally(() => setProfitabilityLoading(false));
   }
 
+  const sortedDriverStatuses = [...driverStatuses].sort(
+    (a, b) =>
+      DRIVER_STATUS_ORDER[driverOverallStatus(a)] -
+      DRIVER_STATUS_ORDER[driverOverallStatus(b)],
+  );
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
@@ -228,70 +268,6 @@ function DashboardContent() {
           value={summary ? formatCRC(summary.monthRevenue) : undefined}
         />
       </div>
-
-      <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">
-          Mantenimiento próximo o vencido
-        </h2>
-        {alertsLoading && <p className="text-sm text-gray-500">Cargando…</p>}
-        {alertsError && <p className="text-sm text-red-600">{alertsError}</p>}
-        {!alertsLoading && !alertsError && alerts.length === 0 && (
-          <p className="text-sm text-gray-500">
-            Ningún vehículo tiene mantenimiento próximo o vencido.
-          </p>
-        )}
-        {alerts.length > 0 && (
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <Th>Vehículo</Th>
-                  <Th>Kilometraje actual</Th>
-                  <Th>Último preventivo</Th>
-                  <Th>Km desde el último</Th>
-                  <Th>Estado</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {alerts.map((alert) => (
-                  <tr key={alert.vehicleId}>
-                    <Td>
-                      <Link
-                        href={`/vehiculos/${alert.vehicleId}/editar`}
-                        className="flex items-center gap-3 font-medium text-gray-900 hover:underline"
-                      >
-                        <PhotoThumbnail
-                          src={alert.photo}
-                          alt={`${alert.brand} ${alert.model}`}
-                          size={40}
-                        />
-                        {alert.brand} {alert.model} ({alert.plate})
-                      </Link>
-                    </Td>
-                    <Td>{alert.currentMileage.toLocaleString('es-CR')} km</Td>
-                    <Td>
-                      {alert.lastPreventiveMileage.toLocaleString('es-CR')} km ·{' '}
-                      {formatDate(alert.lastPreventiveDate)}
-                    </Td>
-                    <Td>{alert.kmSinceLastPreventive.toLocaleString('es-CR')} km</Td>
-                    <Td>
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs font-medium ${
-                          alert.status === 'vencido'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}
-                      >
-                        {MAINTENANCE_ALERT_LABELS[alert.status]}
-                      </span>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
 
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">
@@ -353,65 +329,120 @@ function DashboardContent() {
 
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">
-          Conductores con pagos atrasados
+          Conductores
         </h2>
-        {latePaymentsLoading && <p className="text-sm text-gray-500">Cargando…</p>}
-        {latePaymentsError && (
-          <p className="text-sm text-red-600">{latePaymentsError}</p>
+        {driverStatusesLoading && (
+          <p className="text-sm text-gray-500">Cargando…</p>
         )}
-        {!latePaymentsLoading && !latePaymentsError && latePayments.length === 0 && (
-          <p className="text-sm text-gray-500">
-            Ningún conductor activo tiene pagos atrasados.
-          </p>
+        {driverStatusesError && (
+          <p className="text-sm text-red-600">{driverStatusesError}</p>
         )}
-        {latePayments.length > 0 && (
+        {!driverStatusesLoading &&
+          !driverStatusesError &&
+          sortedDriverStatuses.length === 0 && (
+            <p className="text-sm text-gray-500">
+              Todavía no hay conductores activos registrados.
+            </p>
+          )}
+        {sortedDriverStatuses.length > 0 && (
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <Th>Conductor</Th>
-                  <Th>¿Pagó esta semana?</Th>
-                  <Th>Adeudado actual</Th>
-                  <Th>Saldo pendiente</Th>
+                  <Th>Estado</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
-                {latePayments.map((status) => (
-                  <tr key={status.driverId}>
+                {sortedDriverStatuses.map((status) => {
+                  const overallStatus = driverOverallStatus(status);
+                  return (
+                    <tr key={status.driverId}>
+                      <Td>
+                        <Link
+                          href={`/conductores/${status.driverId}`}
+                          className="flex items-center gap-3 font-medium text-gray-900 hover:underline"
+                        >
+                          <PhotoThumbnail
+                            src={status.photo}
+                            alt={status.fullName}
+                            size={40}
+                            rounded="full"
+                          />
+                          {firstName(status.fullName)}
+                        </Link>
+                      </Td>
+                      <Td>
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-medium ${DRIVER_STATUS_COLORS[overallStatus]}`}
+                        >
+                          {DRIVER_STATUS_LABELS[overallStatus]}
+                        </span>
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">
+          Mantenimiento próximo o vencido
+        </h2>
+        {alertsLoading && <p className="text-sm text-gray-500">Cargando…</p>}
+        {alertsError && <p className="text-sm text-red-600">{alertsError}</p>}
+        {!alertsLoading && !alertsError && alerts.length === 0 && (
+          <p className="text-sm text-gray-500">
+            Ningún vehículo tiene mantenimiento próximo o vencido.
+          </p>
+        )}
+        {alerts.length > 0 && (
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <Th>Vehículo</Th>
+                  <Th>Kilometraje actual</Th>
+                  <Th>Último preventivo</Th>
+                  <Th>Km desde el último</Th>
+                  <Th>Estado</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {alerts.map((alert) => (
+                  <tr key={alert.vehicleId}>
                     <Td>
                       <Link
-                        href={`/conductores/${status.driverId}/editar`}
+                        href={`/vehiculos/${alert.vehicleId}/editar`}
                         className="flex items-center gap-3 font-medium text-gray-900 hover:underline"
                       >
                         <PhotoThumbnail
-                          src={status.photo}
-                          alt={status.fullName}
+                          src={alert.photo}
+                          alt={`${alert.brand} ${alert.model}`}
                           size={40}
-                          rounded="full"
                         />
-                        {status.fullName}
+                        {alert.brand} {alert.model} ({alert.plate})
                       </Link>
                     </Td>
+                    <Td>{alert.currentMileage.toLocaleString('es-CR')} km</Td>
+                    <Td>
+                      {alert.lastPreventiveMileage.toLocaleString('es-CR')} km ·{' '}
+                      {formatDate(alert.lastPreventiveDate)}
+                    </Td>
+                    <Td>{alert.kmSinceLastPreventive.toLocaleString('es-CR')} km</Td>
                     <Td>
                       <span
                         className={`rounded-full px-2 py-1 text-xs font-medium ${
-                          status.hasPaidCurrentWeek
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
+                          alert.status === 'vencido'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-yellow-100 text-yellow-800'
                         }`}
                       >
-                        {status.hasPaidCurrentWeek ? 'Sí' : 'No'}
+                        {MAINTENANCE_ALERT_LABELS[alert.status]}
                       </span>
-                    </Td>
-                    <Td>{formatCRC(status.currentAmountDue)}</Td>
-                    <Td>
-                      {status.pendingBalance > 0 ? (
-                        <span className="font-medium text-red-600">
-                          {formatCRC(status.pendingBalance)}
-                        </span>
-                      ) : (
-                        formatCRC(0)
-                      )}
                     </Td>
                   </tr>
                 ))}
