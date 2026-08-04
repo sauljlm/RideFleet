@@ -60,7 +60,12 @@ export class PaymentsService {
       );
     }
 
-    const { weekStart, weekEnd } = getWeekRange(
+    // Un pago hecho el día exacto de vencimiento (weekStartDay) salda la
+    // semana que acaba de terminar, no la que empieza ese mismo día: debe
+    // usarse el mismo criterio "de cobro" que getCurrentStatus, o el pago
+    // quedaría registrado bajo una semana distinta a la que el estado
+    // considera pendiente.
+    const { weekStart, weekEnd } = getBillingWeekRange(
       new Date(dto.paymentDate),
       driver.weekStartDay,
     );
