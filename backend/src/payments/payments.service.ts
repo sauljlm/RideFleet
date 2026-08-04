@@ -11,7 +11,11 @@ import { DriversService } from '../drivers/drivers.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { Payment, PaymentDocument } from './schemas/payment.schema';
-import { getTodayUTC, getWeekRange } from './week-range.util';
+import {
+  getBillingWeekRange,
+  getTodayUTC,
+  getWeekRange,
+} from './week-range.util';
 
 export interface DriverPaymentStatus {
   driverId: string;
@@ -209,7 +213,7 @@ export class PaymentsService {
       const pendingBalance = lastPayment?.remainingBalance ?? 0;
 
       const { weekStart: todayWeekStart, weekEnd: todayWeekEnd } =
-        getWeekRange(getTodayUTC(), driver.weekStartDay);
+        getBillingWeekRange(getTodayUTC(), driver.weekStartDay);
 
       // Si el depósito cubre la primera semana de contrato, esa semana (la
       // que contiene contractStartDate) no cuenta como atrasada ni se

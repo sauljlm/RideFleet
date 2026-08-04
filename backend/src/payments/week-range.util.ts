@@ -36,6 +36,27 @@ export function getWeekRange(date: Date, weekStartDay: number): WeekRange {
  * comparar directamente contra `weekStart`/`weekEnd` u otras fechas
  * "date-only" (ver nota en `getWeekRange`).
  */
+/**
+ * Calcula la ventana de la semana de pago que corresponde cobrar en
+ * `date`. A diferencia de `getWeekRange`, en el día exacto en que cae
+ * `weekStartDay` (el día de pago) esta función todavía devuelve la semana
+ * que acaba de terminar -la que hay que cobrar hoy-, no la que empieza
+ * ese mismo día. Recién al día siguiente avanza a la semana nueva (en
+ * curso, cuyo vencimiento es en 7 días).
+ *
+ * Sin este ajuste, el mismo día en que el conductor debe pagar, el estado
+ * de pagos ya calculaba la semana siguiente (con vencimiento lejano) y el
+ * conductor aparecía "al día" aunque todavía no hubiera pagado nada.
+ */
+export function getBillingWeekRange(
+  date: Date,
+  weekStartDay: number,
+): WeekRange {
+  const reference = new Date(date);
+  reference.setUTCDate(reference.getUTCDate() - 1);
+  return getWeekRange(reference, weekStartDay);
+}
+
 export function getTodayUTC(): Date {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Costa_Rica',
