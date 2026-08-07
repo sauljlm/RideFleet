@@ -19,7 +19,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed:admin": "ts-node -r tsconfig-paths/register scripts/seed-admin.ts",
-    "migrate:multi-tenant": "ts-node -r tsconfig-paths/register scripts/migrate-multi-tenant.ts"
+    "migrate:multi-tenant": "ts-node -r tsconfig-paths/register scripts/migrate-multi-tenant.ts",
+    "fix:payment-weeks": "ts-node -r tsconfig-paths/register scripts/fix-payment-week-attribution.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
