@@ -39,6 +39,10 @@ export function uploadVehiclePhotos(
   return apiUpload<Vehicle>(`/vehicles/${id}/photos`, files);
 }
 
+export function deleteVehiclePhoto(id: string, url: string): Promise<Vehicle> {
+  return apiDelete<Vehicle>(`/vehicles/${id}/photos`, { url });
+}
+
 export function uploadVehicleDocuments(
   id: string,
   files: FileList | File[],

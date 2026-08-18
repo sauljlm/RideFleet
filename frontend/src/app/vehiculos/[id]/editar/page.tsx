@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
 import { MaintenanceSection } from '@/components/MaintenanceSection';
 import { VehicleForm } from '@/components/VehicleForm';
@@ -11,6 +11,7 @@ import { ApiError } from '@/lib/api';
 import { createAssignment, unassignVehicle } from '@/lib/assignments';
 import { getDrivers } from '@/lib/drivers';
 import {
+  deleteVehiclePhoto,
   getVehicle,
   getVehicles,
   updateVehicle,
@@ -25,19 +26,9 @@ function EditVehicleContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
-
-  const pendingPhotoPreviews = useMemo(
-    () => pendingPhotos.map((file) => URL.createObjectURL(file)),
-    [pendingPhotos],
-  );
-  useEffect(() => {
-    return () => {
-      pendingPhotoPreviews.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [pendingPhotoPreviews]);
+  const [removingPhoto, setRemovingPhoto] = useState<string | null>(null);
 
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [otherVehicles, setOtherVehicles] = useState<Vehicle[]>([]);
@@ -98,32 +89,40 @@ function EditVehicleContent() {
     };
   }, [params.id]);
 
-  function handlePhotosChange(event: ChangeEvent<HTMLInputElement>) {
+  // Las fotos se suben apenas se eligen. Antes quedaban "pendientes" hasta
+  // pulsar un botón aparte, y como "Guardar cambios" del formulario recarga
+  // la página, era fácil perderlas sin que nada lo avisara.
+  async function handlePhotosChange(event: ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-    setPhotoError(null);
-    setPendingPhotos((prev) => [...prev, ...Array.from(files)]);
+    const selected = Array.from(files);
     event.target.value = '';
-  }
-
-  function handleRemovePendingPhoto(index: number) {
-    setPendingPhotos((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  async function handleSavePhotos() {
-    if (pendingPhotos.length === 0) return;
     setPhotoError(null);
     setPhotoUploading(true);
     try {
-      const updated = await uploadVehiclePhotos(params.id, pendingPhotos);
+      const updated = await uploadVehiclePhotos(params.id, selected);
       setVehicle(updated);
-      setPendingPhotos([]);
     } catch (err) {
       setPhotoError(
         err instanceof ApiError ? err.message : 'No se pudo subir la foto',
       );
     } finally {
       setPhotoUploading(false);
+    }
+  }
+
+  async function handleRemovePhoto(url: string) {
+    setPhotoError(null);
+    setRemovingPhoto(url);
+    try {
+      const updated = await deleteVehiclePhoto(params.id, url);
+      setVehicle(updated);
+    } catch (err) {
+      setPhotoError(
+        err instanceof ApiError ? err.message : 'No se pudo eliminar la foto',
+      );
+    } finally {
+      setRemovingPhoto(null);
     }
   }
 
@@ -210,15 +209,29 @@ function EditVehicleContent() {
             {vehicle.photos.length > 0 && (
               <div className="mb-3 flex flex-wrap gap-3">
                 {vehicle.photos.map((url) => (
-                  <a key={url} href={url} target="_blank" rel="noopener noreferrer">
-                    <Image
-                      src={url}
-                      alt={`${vehicle.brand} ${vehicle.model}`}
-                      width={112}
-                      height={112}
-                      className="h-28 w-28 rounded-md object-cover"
-                    />
-                  </a>
+                  <div key={url} className="relative">
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                      <Image
+                        src={url}
+                        alt={`${vehicle.brand} ${vehicle.model}`}
+                        width={112}
+                        height={112}
+                        className={`h-28 w-28 rounded-md object-cover ${
+                          removingPhoto === url ? 'opacity-50' : ''
+                        }`}
+                      />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePhoto(url)}
+                      disabled={removingPhoto !== null}
+                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-xs text-white hover:bg-gray-800 disabled:opacity-50"
+                      aria-label="Eliminar foto"
+                      title="Eliminar foto"
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -230,42 +243,8 @@ function EditVehicleContent() {
               disabled={photoUploading}
               className="file-input"
             />
-
-            {pendingPhotos.length > 0 && (
-              <div className="mt-3">
-                <p className="mb-2 text-sm text-gray-500">
-                  Fotos por guardar:
-                </p>
-                <div className="mb-3 flex flex-wrap gap-3">
-                  {pendingPhotoPreviews.map((url, index) => (
-                    <div key={url} className="relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url}
-                        alt=""
-                        className="h-28 w-28 rounded-md object-cover opacity-75"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePendingPhoto(index)}
-                        disabled={photoUploading}
-                        className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-xs text-white hover:bg-gray-800 disabled:opacity-50"
-                        aria-label="Quitar foto"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSavePhotos}
-                  disabled={photoUploading}
-                  className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-                >
-                  {photoUploading ? 'Guardando…' : 'Guardar fotos'}
-                </button>
-              </div>
+            {photoUploading && (
+              <p className="mt-2 text-sm text-gray-500">Subiendo fotos…</p>
             )}
 
             {photoError && (

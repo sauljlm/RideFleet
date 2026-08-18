@@ -17,6 +17,7 @@ import {
   MAX_FILES_PER_UPLOAD,
 } from '../common/image-upload.options';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
+import { RemovePhotoDto } from './dto/remove-photo.dto';
 import { UpdateMileageDto } from './dto/update-mileage.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { VehiclesService } from './vehicles.service';
@@ -80,6 +81,19 @@ export class VehiclesController {
     @CurrentUser() user: JwtPayloadUser,
   ) {
     return this.vehiclesService.addPhotos(id, files, user.userId);
+  }
+
+  @Delete(':id/photos')
+  removePhoto(
+    @Param('id') id: string,
+    @Body() removePhotoDto: RemovePhotoDto,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.vehiclesService.removePhoto(
+      id,
+      removePhotoDto.url,
+      user.userId,
+    );
   }
 
   @Post(':id/documents')

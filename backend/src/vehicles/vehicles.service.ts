@@ -119,6 +119,27 @@ export class VehiclesService {
     return vehicle.save();
   }
 
+  /**
+   * Quita una foto del vehículo y la borra de Cloudinary. Si la URL no
+   * pertenece a este vehículo se responde 404 en vez de devolver el
+   * vehículo intacto, para que la interfaz no muestre como exitosa una
+   * eliminación que no ocurrió.
+   */
+  async removePhoto(
+    id: string,
+    url: string,
+    ownerId: string,
+  ): Promise<VehicleDocument> {
+    const vehicle = await this.findOne(id, ownerId);
+    if (!vehicle.photos.includes(url)) {
+      throw new NotFoundException('La foto no pertenece a este vehículo');
+    }
+    vehicle.photos = vehicle.photos.filter((photo) => photo !== url);
+    await vehicle.save();
+    await this.cloudinaryService.destroyByUrl(url);
+    return vehicle;
+  }
+
   async addDocuments(
     id: string,
     files: Express.Multer.File[],

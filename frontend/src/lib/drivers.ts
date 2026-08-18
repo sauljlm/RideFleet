@@ -28,6 +28,10 @@ export function uploadDriverPhoto(id: string, file: File): Promise<Driver> {
   return apiUpload<Driver>(`/drivers/${id}/photo`, [file], 'file');
 }
 
+export function deleteDriverPhoto(id: string): Promise<Driver> {
+  return apiDelete<Driver>(`/drivers/${id}/photo`);
+}
+
 export function uploadDriverContractPhotos(
   id: string,
   files: FileList | File[],

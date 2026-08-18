@@ -67,6 +67,11 @@ export class DriversController {
     return this.driversService.setPhoto(id, file, user.userId);
   }
 
+  @Delete(':id/photo')
+  removePhoto(@Param('id') id: string, @CurrentUser() user: JwtPayloadUser) {
+    return this.driversService.removePhoto(id, user.userId);
+  }
+
   @Post(':id/contract-photos')
   @UseInterceptors(
     FilesInterceptor('files', MAX_FILES_PER_UPLOAD, imageUploadOptions),

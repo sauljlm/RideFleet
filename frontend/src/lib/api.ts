@@ -78,11 +78,18 @@ export async function apiPatch<T>(path: string, data: unknown): Promise<T> {
   return handleResponse<T>(res, Boolean(token));
 }
 
-export async function apiDelete<T>(path: string): Promise<T> {
+// `data` es opcional porque casi todos los DELETE identifican el recurso por
+// la URL; los que borran una parte de un recurso (una foto suelta de un
+// vehículo, por ejemplo) necesitan indicar cuál en el cuerpo.
+export async function apiDelete<T>(path: string, data?: unknown): Promise<T> {
   const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
     method: 'DELETE',
-    headers: authHeaders(token),
+    headers:
+      data === undefined
+        ? authHeaders(token)
+        : { 'Content-Type': 'application/json', ...authHeaders(token) },
+    body: data === undefined ? undefined : JSON.stringify(data),
   });
   return handleResponse<T>(res, Boolean(token));
 }

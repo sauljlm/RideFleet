@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
 import { DriverForm } from '@/components/DriverForm';
 import { PaymentSection } from '@/components/PaymentSection';
@@ -14,6 +14,7 @@ import {
 } from '@/lib/assignments';
 import { ApiError } from '@/lib/api';
 import {
+  deleteDriverPhoto,
   getDriver,
   updateDriver,
   uploadDriverContractPhotos,
@@ -42,35 +43,12 @@ function EditDriverContent() {
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
 
-  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoRemoving, setPhotoRemoving] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
-  const [pendingContractPhotos, setPendingContractPhotos] = useState<File[]>(
-    [],
-  );
   const [contractUploading, setContractUploading] = useState(false);
   const [contractError, setContractError] = useState<string | null>(null);
-
-  const pendingPhotoPreview = useMemo(
-    () => (pendingPhoto ? URL.createObjectURL(pendingPhoto) : null),
-    [pendingPhoto],
-  );
-  useEffect(() => {
-    return () => {
-      if (pendingPhotoPreview) URL.revokeObjectURL(pendingPhotoPreview);
-    };
-  }, [pendingPhotoPreview]);
-
-  const pendingContractPreviews = useMemo(
-    () => pendingContractPhotos.map((file) => URL.createObjectURL(file)),
-    [pendingContractPhotos],
-  );
-  useEffect(() => {
-    return () => {
-      pendingContractPreviews.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [pendingContractPreviews]);
 
   useEffect(() => {
     let ignore = false;
@@ -175,22 +153,18 @@ function EditDriverContent() {
     }
   }
 
-  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+  // La foto se sube apenas se elige. Antes quedaba "pendiente" hasta pulsar
+  // un botón aparte, y como "Guardar cambios" del formulario redirige a esta
+  // misma página, la foto elegida se perdía sin subirse y sin aviso.
+  async function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    setPhotoError(null);
-    setPendingPhoto(file);
     event.target.value = '';
-  }
-
-  async function handleSavePhoto() {
-    if (!pendingPhoto) return;
     setPhotoError(null);
     setPhotoUploading(true);
     try {
-      const updated = await uploadDriverPhoto(params.id, pendingPhoto);
+      const updated = await uploadDriverPhoto(params.id, file);
       setDriver(updated);
-      setPendingPhoto(null);
     } catch (err) {
       setPhotoError(
         err instanceof ApiError ? err.message : 'No se pudo subir la foto',
@@ -200,29 +174,31 @@ function EditDriverContent() {
     }
   }
 
-  function handleContractChange(event: ChangeEvent<HTMLInputElement>) {
+  async function handleRemovePhoto() {
+    setPhotoError(null);
+    setPhotoRemoving(true);
+    try {
+      const updated = await deleteDriverPhoto(params.id);
+      setDriver(updated);
+    } catch (err) {
+      setPhotoError(
+        err instanceof ApiError ? err.message : 'No se pudo eliminar la foto',
+      );
+    } finally {
+      setPhotoRemoving(false);
+    }
+  }
+
+  async function handleContractChange(event: ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-    setContractError(null);
-    setPendingContractPhotos((prev) => [...prev, ...Array.from(files)]);
+    const selected = Array.from(files);
     event.target.value = '';
-  }
-
-  function handleRemovePendingContractPhoto(index: number) {
-    setPendingContractPhotos((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  async function handleSaveContractPhotos() {
-    if (pendingContractPhotos.length === 0) return;
     setContractError(null);
     setContractUploading(true);
     try {
-      const updated = await uploadDriverContractPhotos(
-        params.id,
-        pendingContractPhotos,
-      );
+      const updated = await uploadDriverContractPhotos(params.id, selected);
       setDriver(updated);
-      setPendingContractPhotos([]);
     } catch (err) {
       setContractError(
         err instanceof ApiError
@@ -263,13 +239,27 @@ function EditDriverContent() {
               Foto del conductor
             </h2>
             {driver.photo && (
-              <Image
-                src={driver.photo}
-                alt={driver.fullName}
-                width={128}
-                height={128}
-                className="mb-3 h-32 w-32 rounded-md object-cover"
-              />
+              <div className="relative mb-3 w-fit">
+                <Image
+                  src={driver.photo}
+                  alt={driver.fullName}
+                  width={128}
+                  height={128}
+                  className={`h-32 w-32 rounded-md object-cover ${
+                    photoRemoving ? 'opacity-50' : ''
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  disabled={photoRemoving || photoUploading}
+                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-xs text-white hover:bg-gray-800 disabled:opacity-50"
+                  aria-label="Eliminar foto"
+                  title="Eliminar foto"
+                >
+                  ×
+                </button>
+              </div>
             )}
             <input
               type="file"
@@ -278,36 +268,8 @@ function EditDriverContent() {
               disabled={photoUploading}
               className="file-input"
             />
-
-            {pendingPhoto && pendingPhotoPreview && (
-              <div className="mt-3">
-                <p className="mb-2 text-sm text-gray-500">Foto por guardar:</p>
-                <div className="relative mb-3 w-fit">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={pendingPhotoPreview}
-                    alt=""
-                    className="h-32 w-32 rounded-md object-cover opacity-75"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setPendingPhoto(null)}
-                    disabled={photoUploading}
-                    className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-xs text-white hover:bg-gray-800 disabled:opacity-50"
-                    aria-label="Quitar foto"
-                  >
-                    ×
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSavePhoto}
-                  disabled={photoUploading}
-                  className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-                >
-                  {photoUploading ? 'Guardando…' : 'Guardar foto'}
-                </button>
-              </div>
+            {photoUploading && (
+              <p className="mt-2 text-sm text-gray-500">Subiendo foto…</p>
             )}
 
             {photoError && (
@@ -348,41 +310,8 @@ function EditDriverContent() {
               className="file-input"
             />
 
-            {pendingContractPhotos.length > 0 && (
-              <div className="mt-3">
-                <p className="mb-2 text-sm text-gray-500">
-                  Fotos por guardar:
-                </p>
-                <div className="mb-3 flex flex-wrap gap-3">
-                  {pendingContractPreviews.map((url, index) => (
-                    <div key={url} className="relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url}
-                        alt=""
-                        className="h-24 w-24 rounded-md object-cover opacity-75"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePendingContractPhoto(index)}
-                        disabled={contractUploading}
-                        className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-xs text-white hover:bg-gray-800 disabled:opacity-50"
-                        aria-label="Quitar foto"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSaveContractPhotos}
-                  disabled={contractUploading}
-                  className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-                >
-                  {contractUploading ? 'Guardando…' : 'Guardar fotos'}
-                </button>
-              </div>
+            {contractUploading && (
+              <p className="mt-2 text-sm text-gray-500">Subiendo fotos…</p>
             )}
 
             {contractError && (
