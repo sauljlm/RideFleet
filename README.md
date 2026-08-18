@@ -64,6 +64,14 @@ Si vienes de una versión anterior de RideFleet (de un solo usuario) y ya tenía
 ADMIN_USERNAME=admin ADMIN_EMAIL=tu@correo.com ADMIN_FULLNAME="Tu Nombre" npm run migrate:multi-tenant
 ```
 
+Esa misma versión anterior creaba índices únicos globales sobre la placa de los vehículos y la identificación de los conductores, lo que impedía que dos cuentas distintas registraran la misma placa o el mismo conductor. Si tu base de datos viene de esa versión, corre una única vez:
+
+```bash
+npm run fix:tenant-indexes
+```
+
+Reemplaza esos índices por índices únicos **por cuenta** (`ownerId` + placa, `ownerId` + identificación). En bases de datos nuevas no hace falta: la aplicación los crea sola al arrancar.
+
 Corre el servidor de desarrollo:
 
 ```bash

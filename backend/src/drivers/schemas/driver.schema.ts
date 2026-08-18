@@ -22,7 +22,7 @@ export class Driver {
   @Prop({ required: true, trim: true })
   fullName: string;
 
-  @Prop({ required: true, trim: true, unique: true })
+  @Prop({ required: true, trim: true })
   idNumber: string;
 
   @Prop({ required: true, trim: true })
@@ -69,3 +69,8 @@ export class Driver {
 }
 
 export const DriverSchema = SchemaFactory.createForClass(Driver);
+
+// La cédula/identificación es única dentro de los conductores de cada
+// usuario, no a nivel global: dos cuentas distintas pueden registrar al
+// mismo conductor.
+DriverSchema.index({ ownerId: 1, idNumber: 1 }, { unique: true });

@@ -12,6 +12,7 @@ import { MulterError } from 'multer';
 
 interface MongoDuplicateKeyError {
   code: number;
+  keyPattern?: Record<string, unknown>;
 }
 
 function isDuplicateKeyError(
@@ -23,6 +24,29 @@ function isDuplicateKeyError(
     'code' in exception &&
     (exception as { code?: unknown }).code === 11000
   );
+}
+
+/**
+ * Mensajes por campo duplicado. Los índices únicos de vehículos y
+ * conductores son compuestos (ownerId + campo), así que el choque siempre
+ * es dentro de la flota del propio usuario, nunca contra la de otra cuenta.
+ */
+const DUPLICATE_KEY_MESSAGES: Record<string, string> = {
+  plate: 'Ya tienes un vehículo registrado con esa placa',
+  idNumber: 'Ya tienes un conductor registrado con esa identificación',
+  username: 'Ese nombre de usuario ya está en uso',
+  email: 'Ese correo ya está registrado',
+};
+
+function duplicateKeyMessage(exception: MongoDuplicateKeyError): string {
+  const fields = Object.keys(exception.keyPattern ?? {});
+  for (const field of fields) {
+    const message = DUPLICATE_KEY_MESSAGES[field];
+    if (message) {
+      return message;
+    }
+  }
+  return 'Ya existe un registro con ese valor (dato duplicado)';
 }
 
 /**
@@ -70,7 +94,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,
         error: 'Conflict',
-        message: 'Ya existe un registro con ese valor (dato duplicado)',
+        message: duplicateKeyMessage(exception),
       });
       return;
     }

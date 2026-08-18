@@ -43,7 +43,7 @@ export class Vehicle {
   @Prop({ required: true, trim: true })
   color: string;
 
-  @Prop({ required: true, trim: true, unique: true })
+  @Prop({ required: true, trim: true })
   plate: string;
 
   @Prop({ type: [String], default: [] })
@@ -76,3 +76,7 @@ export class Vehicle {
 }
 
 export const VehicleSchema = SchemaFactory.createForClass(Vehicle);
+
+// La placa es única dentro de la flota de cada usuario, no a nivel global:
+// dos cuentas distintas pueden tener un vehículo con la misma placa.
+VehicleSchema.index({ ownerId: 1, plate: 1 }, { unique: true });
