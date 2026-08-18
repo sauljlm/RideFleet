@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { AuthModule } from './auth/auth.module';
+import { LegacyIndexesService } from './common/legacy-indexes.service';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DriversModule } from './drivers/drivers.module';
@@ -36,6 +37,7 @@ import { VehiclesModule } from './vehicles/vehicles.module';
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
+    LegacyIndexesService,
   ],
 })
 export class AppModule {}
