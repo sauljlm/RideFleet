@@ -19,60 +19,37 @@ import {
   type VehicleProfitability,
 } from '@/types/dashboard';
 import { WEEKDAY_LABELS } from '@/types/driver';
-import type { DriverPaymentStatus } from '@/types/payment';
+import type { DriverPaymentStatus, DriverStatusLabel } from '@/types/payment';
 
-type DriverOverallStatus = 'al-dia' | 'pendiente' | 'atraso';
-
-const DRIVER_STATUS_ORDER: Record<DriverOverallStatus, number> = {
+const DRIVER_STATUS_ORDER: Record<DriverStatusLabel, number> = {
   atraso: 0,
   pendiente: 1,
   'al-dia': 2,
 };
 
-const DRIVER_STATUS_LABELS: Record<DriverOverallStatus, string> = {
+const DRIVER_STATUS_LABELS: Record<DriverStatusLabel, string> = {
   'al-dia': 'Al día',
   pendiente: 'Pendiente',
   atraso: 'Atraso',
 };
 
-const DRIVER_STATUS_COLORS: Record<DriverOverallStatus, string> = {
+const DRIVER_STATUS_COLORS: Record<DriverStatusLabel, string> = {
   'al-dia': 'bg-green-100 text-green-800',
   pendiente: 'bg-yellow-100 text-yellow-800',
   atraso: 'bg-red-100 text-red-800',
 };
 
-const PENDING_STATUS_WINDOW_HOURS = 48;
-
-// El conductor paga el día que empieza la semana siguiente (weekStartDay),
-// no el último día de la semana que se está usando el carro: currentWeekEnd
-// es ese último día, así que el vencimiento real es un día después.
-function effectiveDueDate(currentWeekEndIso: string): Date {
-  const due = new Date(currentWeekEndIso);
-  due.setUTCDate(due.getUTCDate() + 1);
-  return due;
-}
-
-function driverOverallStatus(status: DriverPaymentStatus): DriverOverallStatus {
-  if (status.inGracePeriod || status.hasPaidCurrentWeek) return 'al-dia';
-  if (status.pendingBalance > 0) return 'atraso';
-  // Todavía no pagó esta semana, pero mientras falte más de 48 horas para
-  // el vencimiento no está atrasado ni es urgente: sigue "al día".
-  const hoursUntilDue =
-    (effectiveDueDate(status.currentWeekEnd).getTime() - Date.now()) /
-    (1000 * 60 * 60);
-  return hoursUntilDue <= PENDING_STATUS_WINDOW_HOURS ? 'pendiente' : 'al-dia';
-}
+// El estado lo calcula el backend a partir del ledger del conductor. Antes se
+// derivaba aquí, con una segunda definición de "atrasado" que dependía de
+// `pendingBalance` -el saldo del último pago registrado-, así que una semana
+// sin registrar no producía atraso alguno.
 
 function firstName(fullName: string): string {
   return fullName.split(' ')[0];
 }
 
-function paymentDayLabel(weekEndIso: string): string {
-  // weekEnd es el último día de la semana de pago; el día de inicio (el que
-  // configura el conductor y que mostramos como "día de pago") es el
-  // siguiente día de la semana.
-  const weekEndDay = new Date(weekEndIso).getUTCDay();
-  return WEEKDAY_LABELS[(weekEndDay + 1) % 7];
+function paymentDayLabel(dueDateIso: string): string {
+  return WEEKDAY_LABELS[new Date(dueDateIso).getUTCDay()];
 }
 
 function formatDate(value: string): string {
@@ -83,13 +60,38 @@ function formatCRC(value: number): string {
   return `₡${value.toLocaleString('es-CR')}`;
 }
 
+/**
+ * Día calendario de hoy en Costa Rica, como medianoche UTC. Es la misma
+ * normalización que usa el backend (getTodayUTC), y es lo único con lo que se
+ * pueden comparar las fechas "date-only" que envía la API sin desfasarse: la
+ * medianoche UTC del 8 de septiembre es, en hora local de Costa Rica, la
+ * tarde del 7.
+ */
+function todayInCostaRica(): Date {
+  const [year, month, day] = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Costa_Rica',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(new Date())
+    .split('-')
+    .map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
 function formatDueLabel(value: string): string {
   const due = new Date(value);
-  const now = new Date();
-  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffDays = Math.round((dueDay.getTime() - today.getTime()) / 86400000);
-  if (diffDays <= 0) return 'Vence hoy';
+  const dueDay = Date.UTC(
+    due.getUTCFullYear(),
+    due.getUTCMonth(),
+    due.getUTCDate(),
+  );
+  const diffDays = Math.round(
+    (dueDay - todayInCostaRica().getTime()) / 86400000,
+  );
+  if (diffDays < 0) return `Venció el ${formatDate(value)}`;
+  if (diffDays === 0) return 'Vence hoy';
   if (diffDays === 1) return 'Vence mañana';
   return `Vence el ${formatDate(value)}`;
 }
@@ -295,8 +297,7 @@ function DashboardContent() {
 
   const sortedDriverStatuses = [...driverStatuses].sort(
     (a, b) =>
-      DRIVER_STATUS_ORDER[driverOverallStatus(a)] -
-      DRIVER_STATUS_ORDER[driverOverallStatus(b)],
+      DRIVER_STATUS_ORDER[a.status] - DRIVER_STATUS_ORDER[b.status],
   );
 
   return (
@@ -322,7 +323,7 @@ function DashboardContent() {
 
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">
-          Pagos próximos (menos de 48 horas)
+          Cobros pendientes (atrasados y por vencer)
         </h2>
         {upcomingPaymentsLoading && (
           <p className="text-sm text-gray-500">Cargando…</p>
@@ -334,7 +335,7 @@ function DashboardContent() {
           !upcomingPaymentsError &&
           upcomingPayments.length === 0 && (
             <p className="text-sm text-gray-500">
-              Ningún conductor tiene pagos por vencer en las próximas 48 horas.
+              Ningún conductor está atrasado ni tiene un pago por vencer en las próximas 48 horas.
             </p>
           )}
         {upcomingPayments.length > 0 && (
@@ -370,13 +371,27 @@ function DashboardContent() {
                       </Link>
                     </Td>
                     <Td>
-                      <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800">
-                        {formatDueLabel(
-                          effectiveDueDate(status.currentWeekEnd).toISOString(),
-                        )}
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-medium ${
+                          status.status === 'atraso'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}
+                      >
+                        {status.status === 'atraso'
+                          ? `Atrasado ${status.weeksBehind} ${
+                              status.weeksBehind === 1 ? 'semana' : 'semanas'
+                            }`
+                          : formatDueLabel(status.nextDueDate)}
                       </span>
                     </Td>
-                    <Td>{formatCRC(status.currentAmountDue)}</Td>
+                    <Td>
+                      {formatCRC(
+                        status.status === 'atraso'
+                          ? status.overdueAmount
+                          : status.dueSoonAmount,
+                      )}
+                    </Td>
                   </tr>
                 ))}
               </tbody>
@@ -411,11 +426,11 @@ function DashboardContent() {
                   <Th>Día de pago</Th>
                   <Th>Fecha de último pago</Th>
                   <Th>Estado</Th>
+                  <Th>Deuda</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {sortedDriverStatuses.map((status) => {
-                  const overallStatus = driverOverallStatus(status);
                   return (
                     <tr key={status.driverId}>
                       <Td>
@@ -437,7 +452,7 @@ function DashboardContent() {
                           </span>
                         </Link>
                       </Td>
-                      <Td>{paymentDayLabel(status.currentWeekEnd)}</Td>
+                      <Td>{paymentDayLabel(status.nextDueDate)}</Td>
                       <Td>
                         {status.lastPayment
                           ? formatDate(status.lastPayment.paymentDate)
@@ -445,10 +460,27 @@ function DashboardContent() {
                       </Td>
                       <Td>
                         <span
-                          className={`rounded-full px-2 py-1 text-xs font-medium ${DRIVER_STATUS_COLORS[overallStatus]}`}
+                          className={`rounded-full px-2 py-1 text-xs font-medium ${DRIVER_STATUS_COLORS[status.status]}`}
                         >
-                          {DRIVER_STATUS_LABELS[overallStatus]}
+                          {DRIVER_STATUS_LABELS[status.status]}
                         </span>
+                      </Td>
+                      <Td>
+                        {status.overdueAmount > 0 ? (
+                          <span className="font-medium text-red-700">
+                            {formatCRC(status.overdueAmount)}
+                            <span className="ml-1 text-xs font-normal text-gray-500">
+                              ({status.weeksBehind}{' '}
+                              {status.weeksBehind === 1 ? 'semana' : 'semanas'})
+                            </span>
+                          </span>
+                        ) : status.currentBalance < 0 ? (
+                          <span className="text-green-700">
+                            {formatCRC(-status.currentBalance)} a favor
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                       </Td>
                     </tr>
                   );

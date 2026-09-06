@@ -85,6 +85,15 @@ npm run fix:tenant-indexes
 
 Reemplaza esos índices por índices únicos **por cuenta** (`ownerId` + placa, `ownerId` + identificación). En bases de datos nuevas no hace falta: la aplicación los crea sola al arrancar.
 
+Si tu base de datos viene de una versión anterior a la corrección del cálculo de pagos, corre una única vez el script de reconciliación. Reconstruye el historial con el modelo correcto (renta pagada por adelantado, deuda calculada sobre el calendario de semanas) y reimputa los pagos a la semana que corresponde:
+
+```bash
+npm run reconcile:payments             # informe, no escribe nada
+npm run reconcile:payments -- --apply  # aplica los cambios
+```
+
+Corre siempre primero sin `--apply` y revisa el informe: indica, pago por pago, de qué semana a cuál se movería y cuánta deuda queda por conductor.
+
 Corre el servidor de desarrollo:
 
 ```bash

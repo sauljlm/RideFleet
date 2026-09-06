@@ -4,7 +4,7 @@
 
 Aplicación web para que un propietario de vehículos de alquiler (para conductores de Uber) administre su flota: vehículos, conductores, mantenimientos, y pagos semanales de alquiler.
 
-Es un sistema de **un solo usuario administrador** (el propietario). Los conductores NO tienen acceso a la aplicación; solo son registros administrados por el dueño. No se requiere manejo de roles ni permisos múltiples en esta versión.
+Es un sistema **multi-usuario**: cualquiera puede crear una cuenta y cada cuenta tiene su propia flota, conductores y pagos, aislados del resto por `ownerId`. Dentro de cada cuenta hay un solo rol (el propietario). Los conductores NO tienen acceso a la aplicación; solo son registros administrados por el dueño.
 
 **Escala esperada:** 3 vehículos iniciales, con crecimiento planeado hasta 8. Cada vehículo se asigna a un único conductor a la vez (relación 1 a 1, con historial si el conductor cambia).
 
@@ -166,8 +166,13 @@ payments
 
 - **Moneda:** todos los montos (pagos, costos de mantenimiento, montos semanales, depósitos) se manejan en **colones costarricenses (CRC)**. No hay soporte multi-moneda.
 - **Día de inicio de semana:** no es un valor fijo para toda la aplicación. Cada conductor tiene su propio `weekStartDay`, definido al momento de registrar su contrato (normalmente el día de la semana en que empezó a rentar el vehículo).
-- **Saldo acumulado:** si un conductor paga menos del monto acordado en una semana, el saldo pendiente (`remainingBalance`) se suma automáticamente al monto adeudado (`amountDue`) de su siguiente semana de pago. Este saldo se sigue arrastrando semana a semana hasta que se salde por completo. Nunca se descarta ni se maneja como una deuda separada del ciclo de pagos.
-- Al crear un nuevo pago para un conductor, el backend debe calcular `amountDue` buscando el `remainingBalance` del pago anterior de ese mismo conductor (si existe) y sumándolo al `weeklyAmount` actual del conductor.
+- **La renta se paga POR ADELANTADO.** La semana que va del día 1 al día 7 se cobra el día 1: el conductor paga al empezar la semana en que va a usar el carro, no al terminarla. Un conductor está atrasado desde el día siguiente al arranque de una semana que no pagó.
+- **Primera semana del contrato:** es la primera que arranca en `contractStartDate` o después. No la que *contiene* esa fecha: con pago por adelantado eso facturaría una semana que empezó antes de que el conductor tuviera el carro.
+- **El estado se calcula sobre el calendario de semanas, no sobre los registros de pago.** Una semana sin registro es una semana adeudada. Esta es la regla central: modelar la deuda como un campo del último pago hacía que una semana saltada desapareciera sin dejar rastro, y el conductor volvía a aparecer "al día" al día siguiente de no pagar.
+- **Saldo acumulado, con signo.** Lo que falta de una semana se arrastra a la siguiente hasta saldarse. Un sobrepago se arrastra igual, como crédito a favor (saldo negativo), y cubre las semanas siguientes: así se puede pagar dos o tres semanas de una vez para ponerse al día.
+- **Semana dada por saldada (`settled`).** El dueño puede negociar una semana con el conductor ante una situación adversa y cobrar menos de lo acordado. Al marcar el pago como completo, el faltante queda registrado en `forgivenAmount` y **no se arrastra**: el conductor queda al día. Se registra aparte y nunca inflando `amountPaid`, para que los ingresos reflejen lo efectivamente cobrado y se pueda ver cuánto se condonó.
+- **La semana que paga cada pago se elige explícitamente** (`weekStart`), no se deduce de la fecha. Deducirla hacía que un pago hecho con atraso se imputara a la semana siguiente y la semana realmente adeudada quedara sin cobrar para siempre.
+- `previousBalance`, `amountDue` y `remainingBalance` en cada pago son **derivados**: los reescribe `buildLedger` (`backend/src/payments/ledger.util.ts`) a partir del calendario del conductor. Se guardan solo para poder listar el historial sin recalcular.
 
 ## Consideraciones Generales
 
@@ -176,4 +181,4 @@ payments
 - No implementar acceso de conductores a la aplicación.
 - No integrar pasarelas de pago; los pagos se registran manualmente.
 - Las imágenes (vehículos, conductores, contratos, facturas de mantenimiento) se suben a un servicio externo de almacenamiento, no directamente a MongoDB.
-- Priorizar simplicidad: es un sistema de uso personal para un propietario pequeño de flota (3 a 8 vehículos), no un producto multi-tenant.
+- Priorizar simplicidad: está pensado para propietarios pequeños de flota (3 a 8 vehículos). Es multi-cuenta, pero cada cuenta es independiente: no hay organizaciones, equipos ni roles compartidos.

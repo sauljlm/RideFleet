@@ -3,11 +3,16 @@ import type {
   CreatePaymentInput,
   DriverPaymentStatus,
   Payment,
+  PendingWeek,
   UpdatePaymentInput,
 } from '@/types/payment';
 
 export function getPaymentsByDriver(driverId: string): Promise<Payment[]> {
   return apiGet<Payment[]>(`/payments/driver/${driverId}`);
+}
+
+export function getPendingWeeks(driverId: string): Promise<PendingWeek[]> {
+  return apiGet<PendingWeek[]>(`/payments/driver/${driverId}/pending-weeks`);
 }
 
 export function getPaymentsStatus(): Promise<DriverPaymentStatus[]> {

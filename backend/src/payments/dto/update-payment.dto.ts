@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNumber,
@@ -8,10 +9,14 @@ import {
 import { PaymentMethod } from '../schemas/payment.schema';
 
 /**
- * Solo se puede editar cuándo se registró el pago, cuánto se pagó y el
- * método. `driverId`, `weekStart`/`weekEnd` y `previousBalance`/`amountDue`
- * quedan fijos desde la creación: mover un pago de semana implicaría
- * reordenar toda la cadena entre semanas distintas.
+ * Se puede editar cuándo se recibió el pago, cuánto, el método y a qué semana
+ * se imputa. Mover un pago de semana antes era imposible porque los saldos se
+ * encadenaban de un registro al siguiente; con el ledger la cadena se
+ * reconstruye entera desde el calendario, así que reimputar un pago mal
+ * asignado es solo cambiarle la semana.
+ *
+ * `previousBalance`, `amountDue` y `remainingBalance` no se editan: son
+ * derivados y los recalcula el ledger.
  */
 export class UpdatePaymentDto {
   @IsOptional()
@@ -26,4 +31,12 @@ export class UpdatePaymentDto {
   @IsOptional()
   @IsEnum(PaymentMethod, { message: 'Método de pago inválido' })
   method?: PaymentMethod;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'La semana indicada no es válida' })
+  weekStart?: string;
+
+  @IsOptional()
+  @IsBoolean({ message: 'El indicador de pago completo no es válido' })
+  settled?: boolean;
 }

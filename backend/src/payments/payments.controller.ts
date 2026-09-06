@@ -30,6 +30,15 @@ export class PaymentsController {
     return this.paymentsService.getCurrentStatus(user.userId);
   }
 
+  // Antes de ':id' para que 'driver' no se interprete como un id de pago.
+  @Get('driver/:driverId/pending-weeks')
+  getPendingWeeks(
+    @Param('driverId') driverId: string,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.paymentsService.getPendingWeeks(driverId, user.userId);
+  }
+
   @Get('driver/:driverId')
   findByDriver(
     @Param('driverId') driverId: string,

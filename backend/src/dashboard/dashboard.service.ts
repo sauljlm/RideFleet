@@ -204,25 +204,34 @@ export class DashboardService {
     );
   }
 
+  /**
+   * Conductores que requieren cobro: los que ya están atrasados y los que
+   * vencen dentro de la ventana próxima.
+   *
+   * Antes esta lista solo miraba el vencimiento de la semana en curso, así
+   * que un conductor que no pagaba desaparecía de ella al día siguiente:
+   * la semana avanzaba, el vencimiento pasaba a estar a 7 días y el atraso
+   * dejaba de anunciarse. Ahora el atraso lo determina el ledger y no
+   * caduca hasta que se salda.
+   */
   async getUpcomingPayments(ownerId: string): Promise<DriverPaymentStatus[]> {
     const statuses = await this.paymentsService.getCurrentStatus(ownerId);
     const now = Date.now();
-    // El conductor paga el día que empieza la semana siguiente
-    // (weekStartDay), no el último día de la semana que se está usando el
-    // carro: currentWeekEnd es ese último día, así que el vencimiento real
-    // es un día después.
-    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
     return statuses
       .filter((s) => {
-        if (s.inGracePeriod || s.hasPaidCurrentWeek) {
-          return false;
-        }
-        const dueAt = s.currentWeekEnd.getTime() + ONE_DAY_MS;
-        const hoursUntilDue = (dueAt - now) / (1000 * 60 * 60);
+        if (s.status === 'atraso') return true;
+        if (s.inGracePeriod || s.dueSoonAmount <= 0) return false;
+        const hoursUntilDue =
+          (s.nextDueDate.getTime() - now) / (1000 * 60 * 60);
         return hoursUntilDue <= UPCOMING_PAYMENT_WINDOW_HOURS;
       })
-      .sort((a, b) => a.currentWeekEnd.getTime() - b.currentWeekEnd.getTime());
+      .sort((a, b) => {
+        // Primero los atrasados, y dentro de cada grupo el vencimiento más
+        // antiguo arriba.
+        if (a.status !== b.status) return a.status === 'atraso' ? -1 : 1;
+        return a.nextDueDate.getTime() - b.nextDueDate.getTime();
+      });
   }
 
   async getProfitability(

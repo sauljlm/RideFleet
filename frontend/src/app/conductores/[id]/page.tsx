@@ -221,20 +221,34 @@ function DriverDetailContent() {
               {paymentStatus ? (
                 <>
                   <InfoField
-                    label="¿Pagó esta semana?"
-                    value={paymentStatus.hasPaidCurrentWeek ? 'Sí' : 'No'}
-                  />
-                  <InfoField
-                    label="Adeudado actual"
+                    label="Estado"
                     value={
-                      paymentStatus.inGracePeriod
-                        ? `${formatCRC(0)} (período de gracia)`
-                        : formatCRC(paymentStatus.currentAmountDue)
+                      paymentStatus.status === 'atraso'
+                        ? `Atrasado ${paymentStatus.weeksBehind} ${
+                            paymentStatus.weeksBehind === 1
+                              ? 'semana'
+                              : 'semanas'
+                          }`
+                        : paymentStatus.status === 'pendiente'
+                          ? 'Pendiente de cobro'
+                          : 'Al día'
                     }
                   />
                   <InfoField
-                    label="Saldo pendiente"
-                    value={formatCRC(paymentStatus.pendingBalance)}
+                    label="Deuda vencida"
+                    value={
+                      paymentStatus.inGracePeriod
+                        ? `${formatCRC(0)} (período de gracia)`
+                        : formatCRC(paymentStatus.overdueAmount)
+                    }
+                  />
+                  <InfoField
+                    label={
+                      paymentStatus.currentBalance < 0
+                        ? 'Saldo a favor'
+                        : 'Saldo total'
+                    }
+                    value={formatCRC(Math.abs(paymentStatus.currentBalance))}
                   />
                   <InfoField
                     label="Fecha de último pago"
@@ -244,6 +258,12 @@ function DriverDetailContent() {
                         : '—'
                     }
                   />
+                  {paymentStatus.forgivenTotal > 0 && (
+                    <InfoField
+                      label="Condonado en semanas negociadas"
+                      value={formatCRC(paymentStatus.forgivenTotal)}
+                    />
+                  )}
                 </>
               ) : (
                 <p className="text-sm text-gray-500 sm:col-span-2">
