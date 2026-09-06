@@ -2,24 +2,34 @@
 
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
+import { ApiError } from '@/lib/api';
 import { requestPasswordReset } from '@/lib/auth';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
+    setError(null);
     try {
       await requestPasswordReset(email);
-    } catch {
-      // Se ignora cualquier error: siempre mostramos el mismo mensaje
-      // genérico para no revelar si el correo existe en el sistema.
+      setSubmitted(true);
+    } catch (err) {
+      // El backend responde igual exista o no el correo, así que un error
+      // aquí nunca revela si la cuenta existe: es un fallo real (el correo
+      // no pudo enviarse, o no hubo conexión). Mostrarlo importa porque en
+      // ese caso la contraseña NO se cambió y hay que reintentar.
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : 'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
+      );
     } finally {
       setLoading(false);
-      setSubmitted(true);
     }
   }
 
@@ -37,6 +47,11 @@ export default function ForgotPasswordPage() {
           </p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </p>
+            )}
             <div>
               <label
                 htmlFor="email"

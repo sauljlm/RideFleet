@@ -1,26 +1,44 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
-
-const DEFAULT_SANDBOX_SENDER = 'RideFleet <onboarding@resend.dev>';
+import { createTransport, type Transporter } from 'nodemailer';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private readonly resend: Resend | null;
+  private readonly transporter: Transporter | null;
   private readonly from: string;
 
   constructor(configService: ConfigService) {
-    const apiKey = configService.get<string>('RESEND_API_KEY');
-    this.resend = apiKey ? new Resend(apiKey) : null;
-    this.from =
-      configService.get<string>('EMAIL_FROM') ?? DEFAULT_SANDBOX_SENDER;
+    const user = configService.get<string>('GMAIL_USER');
+    // Google muestra la contraseña de aplicación en grupos de 4 separados por
+    // espacios ("abcd efgh ijkl mnop"); pegada tal cual no autentica.
+    const pass = configService
+      .get<string>('GMAIL_APP_PASSWORD')
+      ?.replace(/\s/g, '');
 
-    if (!apiKey) {
+    if (!user || !pass) {
+      this.transporter = null;
+      this.from = '';
       this.logger.warn(
-        'RESEND_API_KEY no está configurada: los correos no se enviarán realmente.',
+        'GMAIL_USER o GMAIL_APP_PASSWORD no están configuradas: los correos no se enviarán.',
       );
+      return;
     }
+
+    // 'gmail' resuelve a smtp.gmail.com:465 sobre TLS. La cuenta necesita
+    // verificación en 2 pasos activa y una contraseña de aplicación; la
+    // contraseña normal de Google no sirve para SMTP.
+    this.transporter = createTransport({
+      service: 'gmail',
+      auth: { user, pass },
+    });
+
+    // Gmail reescribe el remitente a la cuenta autenticada si no coincide con
+    // ella ni con un alias configurado, así que se deriva de GMAIL_USER en vez
+    // de dejarlo libre. Solo el nombre visible es configurable.
+    const senderName =
+      configService.get<string>('EMAIL_FROM_NAME') ?? 'RideFleet';
+    this.from = `${senderName} <${user}>`;
   }
 
   async sendNewPassword(
@@ -28,14 +46,18 @@ export class EmailService {
     fullName: string,
     newPassword: string,
   ): Promise<void> {
-    if (!this.resend) {
-      this.logger.warn(
-        `No se envió el correo de nueva contraseña a ${to} (RESEND_API_KEY no configurada).`,
+    // Falla en vez de retornar en silencio: quien llama necesita saber que el
+    // correo no salió para no dar por buena una operación que depende de él.
+    if (!this.transporter) {
+      throw new Error(
+        'Faltan GMAIL_USER o GMAIL_APP_PASSWORD: no se puede enviar el correo.',
       );
-      return;
     }
 
-    await this.resend.emails.send({
+    // sendMail rechaza la promesa ante cualquier fallo de SMTP (credenciales
+    // inválidas, destinatario rechazado, sin conexión), así que el llamador
+    // se entera por excepción.
+    await this.transporter.sendMail({
       from: this.from,
       to,
       subject: 'Tu nueva contraseña de RideFleet',

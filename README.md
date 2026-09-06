@@ -6,7 +6,7 @@ Contexto completo del proyecto y reglas de negocio: [`docs/CLAUDE.md`](docs/CLAU
 
 ## Stack
 
-- **Backend**: NestJS + Mongoose, MongoDB Atlas, autenticación JWT, subida de imágenes a Cloudinary.
+- **Backend**: NestJS + Mongoose, MongoDB Atlas, autenticación JWT, subida de imágenes a Cloudinary, correo por SMTP de Gmail.
 - **Frontend**: Next.js (App Router), Tailwind CSS.
 
 ## Estructura
@@ -45,12 +45,25 @@ Completa `backend/.env` con tus propios valores (nunca se suben al repo, ese arc
 | `CLOUDINARY_API_SECRET` | Del dashboard de Cloudinary |
 | `PORT` | Puerto del servidor (por defecto `3001`; en Railway se asigna automáticamente) |
 | `FRONTEND_URL` | Origen exacto permitido por CORS, ej. `http://localhost:3000` o el dominio del frontend en producción |
-| `RESEND_API_KEY` | API key de [Resend](https://resend.com), usada para enviar el correo de recuperación de contraseña |
-| `EMAIL_FROM` | Remitente de los correos. Por defecto `onboarding@resend.dev` (remitente de pruebas de Resend, sin verificar dominio propio); en producción usa un remitente de tu propio dominio verificado en Resend |
+| `GMAIL_USER` | Cuenta de Gmail desde la que se envía el correo de recuperación de contraseña |
+| `GMAIL_APP_PASSWORD` | Contraseña de aplicación de esa cuenta (ver más abajo). No es la contraseña normal de Google |
+| `EMAIL_FROM_NAME` | Nombre visible del remitente, ej. `RideFleet`. La dirección siempre es `GMAIL_USER` |
 | `ADMIN_USERNAME` | Solo usado por el script de seed, para crear el usuario administrador inicial |
 | `ADMIN_PASSWORD` | Solo usado por el script de seed (mínimo 8 caracteres) |
 | `ADMIN_EMAIL` | Solo usado por el script de migración a multi-usuario, para completar el correo del administrador inicial |
 | `ADMIN_FULLNAME` | Solo usado por el script de migración a multi-usuario, para completar el nombre del administrador inicial |
+
+### Correo de recuperación de contraseña
+
+El envío usa el SMTP de Gmail, así que no hace falta un dominio propio ni un servicio externo de correo. Para obtener la contraseña de aplicación:
+
+1. Activa la **verificación en 2 pasos** en la cuenta de Google que vaya a enviar los correos (https://myaccount.google.com/security). Sin esto, el paso siguiente no aparece.
+2. Entra a https://myaccount.google.com/apppasswords, crea una contraseña de aplicación y copia los 16 caracteres que muestra.
+3. Ponla en `GMAIL_APP_PASSWORD` y la dirección de esa cuenta en `GMAIL_USER`. Los espacios que muestra Google se pueden pegar tal cual; la aplicación los ignora.
+
+Gmail reescribe el remitente a la cuenta autenticada, por eso la dirección de envío siempre es `GMAIL_USER`: solo el nombre visible (`EMAIL_FROM_NAME`) es configurable. El límite de Gmail es de unos 500 correos diarios, de sobra para este uso.
+
+Si `GMAIL_USER` o `GMAIL_APP_PASSWORD` faltan, la recuperación de contraseña devuelve un error explícito y **no modifica la contraseña del usuario**, en vez de fallar en silencio.
 
 RideFleet es multi-usuario: cada cuenta tiene su propia flota, conductores y pagos, completamente independientes del resto. Cualquier persona puede crear una cuenta desde `/registro` en el frontend. El siguiente script solo es necesario para tener una primera cuenta administradora ya creada (por ejemplo, para no partir de cero en desarrollo):
 

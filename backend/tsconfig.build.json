@@ -1,4 +1,9 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  // scripts/ queda fuera del build: son utilidades de un solo uso que se
+  // corren con ts-node sobre el fuente (npm run seed:admin, las migraciones),
+  // nunca desde dist. Incluirlas empujaba el rootDir a la raíz del proyecto y
+  // el compilado salía en dist/src/main.js en vez de dist/main.js, que es lo
+  // que espera start:prod.
+  "exclude": ["node_modules", "test", "dist", "scripts", "**/*spec.ts"]
 }

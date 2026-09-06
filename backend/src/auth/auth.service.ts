@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -87,9 +88,12 @@ export class AuthService {
     }
 
     const newPassword = randomBytes(9).toString('base64url').slice(0, 12);
-    const passwordHash = await bcrypt.hash(newPassword, PASSWORD_HASH_ROUNDS);
-    await this.usersService.updatePassword(user._id.toString(), passwordHash);
 
+    // El correo se envía ANTES de guardar la nueva contraseña, y un fallo de
+    // envío aborta la operación. Al revés, cada intento fallido dejaba la
+    // cuenta con una contraseña aleatoria que nadie llegó a ver, y la
+    // respuesta genérica lo presentaba como éxito: el usuario perdía el
+    // acceso justo al intentar recuperarlo.
     try {
       await this.emailService.sendNewPassword(
         user.email,
@@ -100,7 +104,13 @@ export class AuthService {
       this.logger.error(
         `No se pudo enviar el correo de nueva contraseña a ${user.email}: ${(error as Error).message}`,
       );
+      throw new ServiceUnavailableException(
+        'No pudimos enviar el correo de recuperación. Tu contraseña no fue modificada; inténtalo de nuevo más tarde.',
+      );
     }
+
+    const passwordHash = await bcrypt.hash(newPassword, PASSWORD_HASH_ROUNDS);
+    await this.usersService.updatePassword(user._id.toString(), passwordHash);
 
     return genericResponse;
   }
