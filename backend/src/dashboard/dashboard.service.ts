@@ -12,7 +12,11 @@ import {
   DriverPaymentStatus,
   PaymentsService,
 } from '../payments/payments.service';
-import { Payment, PaymentDocument } from '../payments/schemas/payment.schema';
+import {
+  Payment,
+  PaymentDocument,
+  PaymentMethod,
+} from '../payments/schemas/payment.schema';
 import { getTodayUTC, getWeekRange } from '../payments/week-range.util';
 import { VehicleStatus } from '../vehicles/schemas/vehicle.schema';
 import { VehiclesService } from '../vehicles/vehicles.service';
@@ -50,6 +54,110 @@ export interface VehicleProfitability {
   totalRevenue: number;
   totalMaintenanceCost: number;
   profit: number;
+}
+
+
+/** Un mes del historial, con lo cobrado y lo gastado dentro de él. */
+export interface MonthlyPoint {
+  /** 'YYYY-MM', en UTC, igual que el resto de fechas de la aplicación. */
+  month: string;
+  revenue: number;
+  maintenanceCost: number;
+  net: number;
+}
+
+export interface VehicleStatistics {
+  vehicleId: string;
+  brand: string;
+  model: string;
+  plate: string;
+  photo: string | null;
+  status: VehicleStatus;
+  totalRevenue: number;
+  totalMaintenanceCost: number;
+  profit: number;
+}
+
+export interface DriverStatistics {
+  driverId: string;
+  fullName: string;
+  photo: string | null;
+  totalPaid: number;
+  paymentsCount: number;
+  forgivenTotal: number;
+}
+
+export interface MaintenanceTypeStatistics {
+  type: MaintenanceType;
+  total: number;
+  count: number;
+}
+
+export interface PaymentMethodStatistics {
+  method: PaymentMethod;
+  total: number;
+  count: number;
+}
+
+export interface StatisticsTotals {
+  totalRevenue: number;
+  totalMaintenanceCost: number;
+  netProfit: number;
+  totalForgiven: number;
+  paymentsCount: number;
+  averageMonthlyRevenue: number;
+  bestMonth: MonthlyPoint | null;
+  /**
+   * Deuda vencida al día de hoy. A diferencia del resto, NO depende del rango
+   * consultado: es una foto del presente, no un acumulado del período, y la
+   * pantalla la rotula como tal.
+   */
+  currentOverdueDebt: number;
+}
+
+export interface Statistics {
+  range: { start: Date; end: Date; months: number };
+  totals: StatisticsTotals;
+  monthly: MonthlyPoint[];
+  byVehicle: VehicleStatistics[];
+  byDriver: DriverStatistics[];
+  maintenanceByType: MaintenanceTypeStatistics[];
+  paymentMethods: PaymentMethodStatistics[];
+}
+
+function monthKey(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Serie continua mes a mes entre dos meses, con los huecos rellenos en cero.
+ * Los meses sin movimiento tienen que aparecer: son parte de la historia, y
+ * omitirlos haría que una gráfica de líneas uniera dos meses no consecutivos
+ * como si fueran vecinos.
+ */
+function buildMonthlySeries(
+  firstMonth: Date,
+  lastMonth: Date,
+  revenueByMonth: Map<string, number>,
+  costByMonth: Map<string, number>,
+): MonthlyPoint[] {
+  const series: MonthlyPoint[] = [];
+  const cursor = new Date(firstMonth);
+
+  while (cursor.getTime() <= lastMonth.getTime()) {
+    const key = monthKey(cursor);
+    const revenue = revenueByMonth.get(key) ?? 0;
+    const maintenanceCost = costByMonth.get(key) ?? 0;
+    series.push({
+      month: key,
+      revenue,
+      maintenanceCost,
+      net: revenue - maintenanceCost,
+    });
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+
+  return series;
 }
 
 @Injectable()
@@ -289,5 +397,295 @@ export class DashboardService {
         };
       })
       .sort((a, b) => b.profit - a.profit);
+  }
+
+  /**
+   * Todo lo que alimenta la pantalla de estadísticas, en una sola llamada:
+   * la serie mensual, los totales y los desgloses por vehículo, conductor,
+   * tipo de mantenimiento y método de pago.
+   *
+   * `months` recorta el período a los últimos N meses (incluido el actual).
+   * Sin él se devuelve el historial completo, desde el primer movimiento
+   * registrado. Todos los cortes se calculan sobre el mismo rango para que
+   * las cifras de la pantalla concuerden entre sí.
+   */
+  async getStatistics(ownerId: string, months?: number): Promise<Statistics> {
+    const ownerObjectId = new Types.ObjectId(ownerId);
+    const today = getTodayUTC();
+    const currentMonthStart = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1),
+    );
+    const periodEnd = new Date(
+      Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      ),
+    );
+
+    const periodStart =
+      months === undefined
+        ? await this.findFirstActivityMonth(ownerObjectId, currentMonthStart)
+        : new Date(
+            Date.UTC(
+              today.getUTCFullYear(),
+              today.getUTCMonth() - (months - 1),
+              1,
+            ),
+          );
+
+    const paymentMatch = {
+      ownerId: ownerObjectId,
+      paymentDate: { $gte: periodStart, $lte: periodEnd },
+    };
+    const maintenanceMatch = {
+      ownerId: ownerObjectId,
+      date: { $gte: periodStart, $lte: periodEnd },
+    };
+
+    const [
+      revenueByMonth,
+      costByMonth,
+      paymentTotals,
+      revenueByVehicle,
+      costByVehicle,
+      paidByDriver,
+      costByType,
+      revenueByMethod,
+      vehicles,
+      drivers,
+      driverStatuses,
+    ] = await Promise.all([
+      this.paymentModel.aggregate<{ _id: string; total: number }>([
+        { $match: paymentMatch },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: '%Y-%m',
+                date: '$paymentDate',
+                timezone: 'UTC',
+              },
+            },
+            total: { $sum: '$amountPaid' },
+          },
+        },
+      ]),
+      this.maintenanceModel.aggregate<{ _id: string; total: number }>([
+        { $match: maintenanceMatch },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: '%Y-%m',
+                date: '$date',
+                timezone: 'UTC',
+              },
+            },
+            total: { $sum: '$cost' },
+          },
+        },
+      ]),
+      this.paymentModel.aggregate<{
+        total: number;
+        forgiven: number;
+        count: number;
+      }>([
+        { $match: paymentMatch },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: '$amountPaid' },
+            forgiven: { $sum: '$forgivenAmount' },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      this.paymentModel.aggregate<{ _id: unknown; total: number }>([
+        { $match: paymentMatch },
+        { $group: { _id: '$vehicleId', total: { $sum: '$amountPaid' } } },
+      ]),
+      this.maintenanceModel.aggregate<{ _id: unknown; total: number }>([
+        { $match: maintenanceMatch },
+        { $group: { _id: '$vehicleId', total: { $sum: '$cost' } } },
+      ]),
+      this.paymentModel.aggregate<{
+        _id: unknown;
+        total: number;
+        count: number;
+        forgiven: number;
+      }>([
+        { $match: paymentMatch },
+        {
+          $group: {
+            _id: '$driverId',
+            total: { $sum: '$amountPaid' },
+            count: { $sum: 1 },
+            forgiven: { $sum: '$forgivenAmount' },
+          },
+        },
+      ]),
+      this.maintenanceModel.aggregate<{
+        _id: MaintenanceType;
+        total: number;
+        count: number;
+      }>([
+        { $match: maintenanceMatch },
+        {
+          $group: {
+            _id: '$type',
+            total: { $sum: '$cost' },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      this.paymentModel.aggregate<{
+        _id: PaymentMethod;
+        total: number;
+        count: number;
+      }>([
+        { $match: paymentMatch },
+        {
+          $group: {
+            _id: '$method',
+            total: { $sum: '$amountPaid' },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      this.vehiclesService.findAll(ownerId),
+      this.driversService.findAll(ownerId),
+      this.paymentsService.getCurrentStatus(ownerId),
+    ]);
+
+    const monthly = buildMonthlySeries(
+      periodStart,
+      currentMonthStart,
+      new Map(revenueByMonth.map((r) => [r._id, r.total])),
+      new Map(costByMonth.map((r) => [r._id, r.total])),
+    );
+
+    const totalRevenue = paymentTotals[0]?.total ?? 0;
+    const totalMaintenanceCost = costByType.reduce((s, r) => s + r.total, 0);
+
+    const revenueVehicleMap = new Map(
+      revenueByVehicle.map((r) => [String(r._id), r.total]),
+    );
+    const costVehicleMap = new Map(
+      costByVehicle.map((r) => [String(r._id), r.total]),
+    );
+    const driverMap = new Map(paidByDriver.map((r) => [String(r._id), r]));
+
+    const byVehicle: VehicleStatistics[] = vehicles
+      .map((vehicle) => {
+        const id = vehicle._id.toString();
+        const vehicleRevenue = revenueVehicleMap.get(id) ?? 0;
+        const vehicleCost = costVehicleMap.get(id) ?? 0;
+        return {
+          vehicleId: id,
+          brand: vehicle.brand,
+          model: vehicle.model,
+          plate: vehicle.plate,
+          photo: vehicle.photos[0] ?? null,
+          status: vehicle.status,
+          totalRevenue: vehicleRevenue,
+          totalMaintenanceCost: vehicleCost,
+          profit: vehicleRevenue - vehicleCost,
+        };
+      })
+      .sort((a, b) => b.profit - a.profit);
+
+    const byDriver: DriverStatistics[] = drivers
+      .map((driver) => {
+        const row = driverMap.get(driver._id.toString());
+        return {
+          driverId: driver._id.toString(),
+          fullName: driver.fullName,
+          photo: driver.photo ?? null,
+          totalPaid: row?.total ?? 0,
+          paymentsCount: row?.count ?? 0,
+          forgivenTotal: row?.forgiven ?? 0,
+        };
+      })
+      .sort((a, b) => b.totalPaid - a.totalPaid);
+
+    // Solo los tipos y métodos con movimiento: un segmento de valor cero en
+    // una gráfica de composición no aporta nada y ensucia la leyenda.
+    const maintenanceByType: MaintenanceTypeStatistics[] = costByType
+      .filter((r) => r.total > 0)
+      .map((r) => ({ type: r._id, total: r.total, count: r.count }))
+      .sort((a, b) => b.total - a.total);
+
+    const paymentMethods: PaymentMethodStatistics[] = revenueByMethod
+      .filter((r) => r.total > 0)
+      .map((r) => ({ method: r._id, total: r.total, count: r.count }))
+      .sort((a, b) => b.total - a.total);
+
+    const bestMonth =
+      totalRevenue > 0
+        ? monthly.reduce((best, point) =>
+            point.revenue > best.revenue ? point : best,
+          )
+        : null;
+
+    return {
+      range: { start: periodStart, end: periodEnd, months: monthly.length },
+      totals: {
+        totalRevenue,
+        totalMaintenanceCost,
+        netProfit: totalRevenue - totalMaintenanceCost,
+        totalForgiven: paymentTotals[0]?.forgiven ?? 0,
+        paymentsCount: paymentTotals[0]?.count ?? 0,
+        averageMonthlyRevenue:
+          monthly.length > 0 ? totalRevenue / monthly.length : 0,
+        bestMonth,
+        currentOverdueDebt: driverStatuses.reduce(
+          (sum, status) => sum + Math.max(status.overdueAmount, 0),
+          0,
+        ),
+      },
+      monthly,
+      byVehicle,
+      byDriver,
+      maintenanceByType,
+      paymentMethods,
+    };
+  }
+
+  /**
+   * Primer mes con movimiento (pago o mantenimiento). Si la cuenta todavía no
+   * tiene ninguno, el historial arranca en el mes en curso: así la pantalla
+   * siempre tiene un rango que rotular en vez de un estado vacío aparte.
+   */
+  private async findFirstActivityMonth(
+    ownerObjectId: Types.ObjectId,
+    fallback: Date,
+  ): Promise<Date> {
+    const [firstPayment, firstMaintenance] = await Promise.all([
+      this.paymentModel
+        .findOne({ ownerId: ownerObjectId })
+        .sort({ paymentDate: 1 })
+        .select('paymentDate')
+        .lean(),
+      this.maintenanceModel
+        .findOne({ ownerId: ownerObjectId })
+        .sort({ date: 1 })
+        .select('date')
+        .lean(),
+    ]);
+
+    const dates = [firstPayment?.paymentDate, firstMaintenance?.date].filter(
+      (d): d is Date => d instanceof Date,
+    );
+    if (dates.length === 0) return fallback;
+
+    const earliest = new Date(Math.min(...dates.map((d) => d.getTime())));
+    return new Date(
+      Date.UTC(earliest.getUTCFullYear(), earliest.getUTCMonth(), 1),
+    );
   }
 }

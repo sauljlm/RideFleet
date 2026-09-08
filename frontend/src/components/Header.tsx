@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/vehiculos', label: 'Vehículos' },
   { href: '/conductores', label: 'Conductores' },
+  { href: '/estadisticas', label: 'Estadísticas' },
 ];
 
 export function Header() {

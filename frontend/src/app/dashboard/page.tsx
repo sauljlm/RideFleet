@@ -308,9 +308,7 @@ function DashboardContent() {
 
       {summaryError && <p className="mb-4 text-sm text-red-600">{summaryError}</p>}
 
-      <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <SummaryCard label="Vehículos activos" value={summary?.activeVehicles} />
-        <SummaryCard label="Conductores activos" value={summary?.activeDrivers} />
+      <div className="mb-3 grid grid-cols-2 gap-3 sm:gap-4">
         <SummaryCard
           label="Ingresos de la semana"
           value={summary ? formatCRC(summary.weekRevenue) : undefined}
@@ -319,6 +317,16 @@ function DashboardContent() {
           label="Ingresos del mes"
           value={summary ? formatCRC(summary.monthRevenue) : undefined}
         />
+      </div>
+
+      <div className="mb-8">
+        <Link
+          href="/estadisticas"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 hover:underline"
+        >
+          Ver estadísticas
+          <span aria-hidden>→</span>
+        </Link>
       </div>
 
       <section className="mb-8">

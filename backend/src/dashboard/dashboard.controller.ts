@@ -3,6 +3,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayloadUser } from '../auth/strategies/jwt.strategy';
 import { DashboardService } from './dashboard.service';
 import { ProfitabilityQueryDto } from './dto/profitability-query.dto';
+import { StatisticsQueryDto } from './dto/statistics-query.dto';
 
 @Controller('dashboard')
 export class DashboardController {
@@ -33,5 +34,13 @@ export class DashboardController {
       new Date(query.endDate),
       user.userId,
     );
+  }
+
+  @Get('statistics')
+  getStatistics(
+    @Query() query: StatisticsQueryDto,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.dashboardService.getStatistics(user.userId, query.months);
   }
 }
