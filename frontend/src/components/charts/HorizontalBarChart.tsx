@@ -5,6 +5,8 @@ import { CHROME, formatCRC, type ChartSeries } from './chart-theme';
 export interface BarRow {
   key: string;
   label: string;
+  /** Versión corta para pantallas angostas, donde el nombre completo aprieta. */
+  shortLabel?: string;
   sublabel?: string;
   /** Cifra destacada a la derecha del nombre, ej. la ganancia del vehículo. */
   trailing?: { label: string; value: string; tone?: 'positive' | 'negative' };
@@ -39,7 +41,8 @@ export function HorizontalBarChart({
         <li key={row.key}>
           <div className="mb-1.5 flex items-baseline justify-between gap-3">
             <p className="min-w-0 truncate text-sm font-medium text-gray-900">
-              {row.label}
+              <span className="sm:hidden">{row.shortLabel ?? row.label}</span>
+              <span className="hidden sm:inline">{row.label}</span>
               {row.sublabel && (
                 <span className="ml-2 text-xs font-normal text-gray-500">
                   {row.sublabel}

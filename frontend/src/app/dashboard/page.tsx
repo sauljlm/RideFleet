@@ -535,7 +535,12 @@ function DashboardContent() {
                           alt={`${alert.brand} ${alert.model}`}
                           size={40}
                         />
-                        {alert.brand} {alert.model} ({alert.plate})
+                        <span className="sm:hidden">
+                          {alert.model} ({alert.plate})
+                        </span>
+                        <span className="hidden sm:inline">
+                          {alert.brand} {alert.model} ({alert.plate})
+                        </span>
                       </Link>
                     </Td>
                     <Td>{alert.currentMileage.toLocaleString('es-CR')} km</Td>
@@ -567,11 +572,15 @@ function DashboardContent() {
         <h2 className="mb-3 text-lg font-semibold text-gray-900">
           Rentabilidad por vehículo
         </h2>
+        {/* En móvil las dos fechas van en dos columnas y el botón debajo, a
+            todo el ancho. Dejarlo al `flex-wrap` hacía que en pantallas
+            angostas "Hasta" cayera bajo "Desde" y el botón terminara
+            pegado a un lado, en vez de una fila propia. */}
         <form
           onSubmit={handleProfitabilitySubmit}
-          className="mb-4 flex flex-wrap items-end gap-3"
+          className="mb-4 grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap"
         >
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block min-w-0 text-sm font-medium text-gray-700">
             Desde
             <input
               type="date"
@@ -580,7 +589,7 @@ function DashboardContent() {
               className="input mt-1"
             />
           </label>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block min-w-0 text-sm font-medium text-gray-700">
             Hasta
             <input
               type="date"
@@ -591,7 +600,7 @@ function DashboardContent() {
           </label>
           <button
             type="submit"
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            className="col-span-2 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 sm:col-span-1"
           >
             Consultar
           </button>
@@ -628,7 +637,12 @@ function DashboardContent() {
                           alt={`${row.brand} ${row.model}`}
                           size={40}
                         />
-                        {row.brand} {row.model} ({row.plate})
+                        <span className="sm:hidden">
+                          {row.model} ({row.plate})
+                        </span>
+                        <span className="hidden sm:inline">
+                          {row.brand} {row.model} ({row.plate})
+                        </span>
                       </Link>
                     </Td>
                     <Td>

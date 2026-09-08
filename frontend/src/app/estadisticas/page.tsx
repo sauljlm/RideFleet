@@ -113,6 +113,9 @@ function StatisticsContent() {
   const vehicleRows = (stats?.byVehicle ?? []).map((vehicle) => ({
     key: vehicle.vehicleId,
     label: `${vehicle.brand} ${vehicle.model}`,
+    // En móvil basta el modelo y la placa; la marca aprieta la fila contra
+    // la ganancia, igual que en las tablas del dashboard.
+    shortLabel: vehicle.model,
     sublabel: vehicle.plate,
     trailing: {
       label: 'Ganancia',
